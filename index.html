@@ -207,7 +207,7 @@
   });
 
   /* ---- Rotation façon platine : démarrage et arrêt progressifs ---- */
-  const RPM = 33.3, TOP = RPM * 360 / 60000; // degrés par ms
+  const RPM = 12, TOP = RPM * 360 / 60000; // degrés par ms
   let angle = 0, speed = 0, last = performance.now();
   const frame = (now) => {
     const dt = Math.min(now - last, 64); last = now;
