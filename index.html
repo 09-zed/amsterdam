@@ -273,6 +273,25 @@ const VOYAGE = {
   };
   const play = () => audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
   const toggle = () => { if (playing) { audio.pause(); setPlaying(false); } else { play(); } };
+  // Pause / lecture depuis le lecteur du téléphone : le vinyle suit
+  audio.addEventListener('play', () => setPlaying(true));
+  audio.addEventListener('pause', () => setPlaying(false));
+
+  /* ---- Cover, titre et artiste dans le lecteur du téléphone (écran verrouillé, centre de contrôle) ---- */
+  if ('mediaSession' in navigator) {
+    const abs = (p) => new URL(p, location.href).href;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: 'Amsterdam',
+      artist: 'Moha La Squale',
+      album: 'Amsterdam ?',
+      artwork: [
+        { src: abs('assets/cover-512.jpg'), sizes: '512x512', type: 'image/jpeg' },
+        { src: abs('assets/cover-1024.jpg'), sizes: '1024x1024', type: 'image/jpeg' },
+      ],
+    });
+    navigator.mediaSession.setActionHandler('play', () => play());
+    navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+  }
 
   let deckControlled = false;
   yes.addEventListener('click', () => {
