@@ -303,9 +303,10 @@ const VOYAGE = {
     s.querySelector('.step-what').textContent = what;
     if (img) {
       const im = new Image();
-      im.alt = what; im.loading = i === 0 ? 'eager' : 'lazy'; im.decoding = 'async';
-      im.onload = () => s.querySelector('.art').append(im);
+      im.alt = what; im.decoding = 'async';
+      im.onerror = () => im.remove(); // image absente : on garde le fond provisoire
       im.src = img;
+      s.querySelector('.art').append(im);
     }
     slides.append(s);
   });
