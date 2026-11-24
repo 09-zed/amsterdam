@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Amsterdam ?</title>
+<meta name="description" content="Amsterdam, oui ou non ?">
+<meta name="theme-color" content="#0B1220">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;800;900&display=swap" rel="stylesheet">
+<link rel="preload" as="image" href="assets/vinyle.webp">
+<style>
+  :root {
+    color-scheme: dark;
+    --night: #0B1220;
+    --night-2: #18223A;
+    --amber: #F0A43A;
+    --amber-deep: #B8671A;
+    --paper: #F4E9D6;
+    --muted: #A4ABBC;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --size: min(82vw, 58dvh, 560px);
+    --peek: 0.30; /* part du vinyle visible sur l'écran d'accueil */
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(120% 60% at 50% 115%, rgba(240,164,58,.42), rgba(184,103,26,.12) 45%, transparent 70%),
+      linear-gradient(180deg, var(--night) 0%, var(--night) 45%, var(--night-2) 100%);
+    background-color: var(--night);
+    color: var(--paper);
+    font-family: "Big Shoulders Display", "Arial Narrow", sans-serif;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #stars { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .grain {
+    position: fixed; inset: -50%; pointer-events: none; opacity: .09; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- Accueil ---------- */
+  .intro {
+    position: fixed; inset: 0 0 auto 0;
+    height: calc(100dvh - var(--size) * var(--peek));
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: clamp(28px, 5dvh, 48px);
+    padding: env(safe-area-inset-top) 16px 0;
+    text-align: center;
+    transition: opacity 380ms var(--ease-out), transform 600ms var(--ease-out);
+  }
+  h1 {
+    font-weight: 900;
+    font-size: clamp(60px, 17vw, 220px);
+    line-height: .86;
+    letter-spacing: -.01em;
+    text-transform: uppercase;
+    text-wrap: balance;
+    color: var(--paper);
+    text-shadow: 0 0 40px rgba(240,164,58,.35), 0 0 2px rgba(240,164,58,.6);
+  }
+  h1 .q { color: var(--amber); }
+  .choices { display: flex; align-items: center; justify-content: center; gap: 20px; min-height: 64px; }
+  .btn {
+    font: inherit; font-weight: 800; font-size: 26px; letter-spacing: .04em; text-transform: uppercase;
+    min-width: 132px; min-height: 56px; padding: 0 28px;
+    border-radius: 999px; cursor: pointer; touch-action: manipulation;
+    transition: transform 260ms var(--ease-out), opacity 200ms var(--ease-out), background-color 160ms ease;
+  }
+  .btn:focus-visible { outline: 3px solid var(--paper); outline-offset: 4px; }
+  .btn-yes {
+    background: var(--amber); color: #1A1206; border: 0;
+    box-shadow: 0 0 0 1px rgba(255,220,160,.35) inset, 0 10px 30px -8px rgba(240,164,58,.7);
+    transform: scale(var(--grow, 1));
+    position: relative; z-index: 2;
+  }
+  .btn-no {
+    background: transparent; color: var(--paper);
+    border: 2px solid rgba(244,233,214,.45);
+    transform: scale(var(--shrink, 1));
+  }
+  .btn-yes:active { transform: scale(calc(var(--grow, 1) * .97)); }
+  .btn-no:active { transform: scale(calc(var(--shrink, 1) * .97)); }
+  @media (hover: hover) and (pointer: fine) {
+    .btn-yes:hover { background: #F6B556; }
+    .btn-no:hover { border-color: rgba(244,233,214,.8); }
+  }
+  .btn-no.gone { opacity: 0; pointer-events: none; }
+
+  /* ---------- Vinyle ---------- */
+  .deck {
+    position: fixed; left: 50%; top: 50%;
+    width: var(--size); height: var(--size);
+    transform: translate(-50%, -50%) translateY(calc(50dvh - var(--size) * (var(--peek) - .5)));
+    transition: transform 1100ms var(--ease-out);
+  }
+  .vinyl {
+    display: block; width: 100%; height: 100%; padding: 0; border: 0; background: none;
+    border-radius: 50%; cursor: pointer; touch-action: manipulation;
+    opacity: .5; transition: opacity 900ms var(--ease-out);
+    filter: drop-shadow(0 30px 60px rgba(0,0,0,.6)) drop-shadow(0 0 50px rgba(240,164,58,.18));
+  }
+  .vinyl:focus-visible { outline: 3px solid var(--amber); outline-offset: 18px; }
+  .vinyl img {
+    display: block; width: 100%; height: 100%; border-radius: 50%;
+    will-change: transform; user-select: none; -webkit-user-drag: none;
+  }
+  .ring { position: absolute; inset: -14px; width: calc(100% + 28px); height: calc(100% + 28px); pointer-events: none; opacity: 0; transition: opacity 600ms var(--ease-out) 500ms; }
+  .ring circle { fill: none; stroke-width: 1.2; }
+  .ring .track { stroke: rgba(244,233,214,.12); }
+  .ring .bar { stroke: var(--amber); stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
+
+  .caption {
+    position: fixed; left: 0; right: 0;
+    bottom: calc(env(safe-area-inset-bottom) + clamp(20px, 5dvh, 48px));
+    text-align: center; padding: 0 16px;
+    opacity: 0; transform: translateY(8px);
+    transition: opacity 500ms var(--ease-out) 700ms, transform 500ms var(--ease-out) 700ms;
+    pointer-events: none;
+  }
+  .caption .title { font-weight: 900; font-size: 34px; text-transform: uppercase; letter-spacing: .02em; line-height: 1; }
+  .caption .artist { font-weight: 500; font-size: 20px; color: var(--muted); margin-top: 6px; }
+  .caption .hint { font-weight: 500; font-size: 16px; color: var(--muted); margin-top: 14px; opacity: .8; }
+
+  /* ---------- Écran lecture ---------- */
+  body.playing-screen .intro { opacity: 0; transform: translateY(-40px); pointer-events: none; }
+  body.playing-screen .deck { transform: translate(-50%, -50%) translateY(-5dvh); }
+  body.playing-screen .vinyl { opacity: 1; }
+  body.playing-screen .ring { opacity: 1; }
+  body.playing-screen .caption { opacity: 1; transform: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .intro, .deck, .vinyl, .ring, .caption, .btn { transition-duration: 1ms !important; transition-delay: 0ms !important; }
+  }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+  <canvas id="stars" aria-hidden="true"></canvas>
+  <div class="grain" aria-hidden="true"></div>
+
+  <main>
+    <section class="intro" aria-labelledby="q">
+      <h1 id="q">Amsterdam<span class="q">&#8239;?</span></h1>
+      <div class="choices">
+        <button class="btn btn-yes" id="yes" type="button">Oui</button>
+        <button class="btn btn-no" id="no" type="button">Non</button>
+      </div>
+    </section>
+
+    <div class="deck">
+      <svg class="ring" viewBox="0 0 100 100" aria-hidden="true">
+        <circle class="track" cx="50" cy="50" r="49"/>
+        <circle class="bar" id="bar" cx="50" cy="50" r="49" pathLength="100" stroke-dasharray="0 100"/>
+      </svg>
+      <button class="vinyl" id="vinyl" type="button" tabindex="-1" aria-label="Lancer la musique">
+        <img id="disc" src="assets/vinyle.webp" width="1254" height="1254" alt="" draggable="false">
+      </button>
+    </div>
+
+    <div class="caption" aria-live="polite">
+      <p class="title">Amsterdam</p>
+      <p class="artist">Moha La&nbsp;Squale</p>
+      <p class="hint" id="hint">Touche le vinyle pour mettre en pause</p>
+    </div>
+  </main>
+
+  <audio id="audio" src="assets/amsterdam.mp3" preload="auto" loop></audio>
+
+<script>
+(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = (id) => document.getElementById(id);
+  const yes = $('yes'), no = $('no'), vinyl = $('vinyl'), disc = $('disc'),
+        audio = $('audio'), bar = $('bar'), hint = $('hint');
+
+  /* ---- Bouton Non : rétrécit à chaque clic, Oui grossit ---- */
+  let noClicks = 0;
+  no.addEventListener('click', () => {
+    noClicks++;
+    const shrink = Math.max(0, 1 - noClicks * 0.18);
+    no.style.setProperty('--shrink', shrink.toFixed(2));
+    yes.style.setProperty('--grow', Math.min(1 + noClicks * 0.14, 1.9).toFixed(2));
+    if (shrink < 0.2) { no.classList.add('gone'); no.setAttribute('aria-hidden', 'true'); no.tabIndex = -1; yes.focus(); }
+  });
+
+  /* ---- Lecture ---- */
+  let playing = false;
+  const setPlaying = (p) => {
+    playing = p;
+    vinyl.setAttribute('aria-label', p ? 'Mettre en pause' : 'Lancer la musique');
+    hint.textContent = p ? 'Touche le vinyle pour mettre en pause' : 'Touche le vinyle pour relancer';
+  };
+  const play = () => audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+
+  yes.addEventListener('click', () => {
+    document.body.classList.add('playing-screen');
+    vinyl.tabIndex = 0;
+    play();
+    setTimeout(() => vinyl.focus({ preventScroll: true }), 600);
+  });
+  vinyl.addEventListener('click', () => {
+    if (!document.body.classList.contains('playing-screen')) return;
+    if (playing) { audio.pause(); setPlaying(false); } else { play(); }
+  });
+
+  /* ---- Rotation façon platine : démarrage et arrêt progressifs ---- */
+  const RPM = 33.3, TOP = RPM * 360 / 60000; // degrés par ms
+  let angle = 0, speed = 0, last = performance.now();
+  const frame = (now) => {
+    const dt = Math.min(now - last, 64); last = now;
+    const target = playing ? TOP : 0;
+    const k = playing ? 700 : 1100; // montée plus rapide que l'arrêt
+    speed += (target - speed) * Math.min(1, dt / k * 3);
+    if (Math.abs(speed) < 1e-5) speed = 0;
+    angle = (angle + speed * dt) % 360;
+    disc.style.transform = `rotate(${angle}deg)`;
+    if (audio.duration) bar.setAttribute('stroke-dasharray', `${(audio.currentTime / audio.duration * 100).toFixed(2)} 100`);
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+
+  /* ---- Ciel étoilé, comme le toit ouvrant du vinyle ---- */
+  const c = $('stars'), ctx = c.getContext('2d');
+  let stars = [];
+  const resize = () => {
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    c.width = innerWidth * dpr; c.height = innerHeight * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const n = Math.round(innerWidth * innerHeight / 9000);
+    stars = Array.from({ length: n }, () => {
+      const y = Math.pow(Math.random(), 1.6) * innerHeight * .8; // plus dense en haut
+      return { x: Math.random() * innerWidth, y, r: Math.random() < .08 ? 1.6 : Math.random() * .9 + .3,
+               warm: Math.random() < .6, p: Math.random() * Math.PI * 2, s: .4 + Math.random() * 1.2 };
+    });
+  };
+  const draw = (t) => {
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    for (const s of stars) {
+      const a = reduce ? .7 : .45 + .55 * (0.5 + 0.5 * Math.sin(t / 1000 * s.s + s.p));
+      ctx.globalAlpha = a * (1 - s.y / innerHeight * .9);
+      ctx.fillStyle = s.warm ? '#FFC874' : '#F4E9D6';
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+      if (s.r > 1.5) { ctx.globalAlpha *= .25; ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 4, 0, Math.PI * 2); ctx.fill(); }
+    }
+    if (!reduce) requestAnimationFrame(draw);
+  };
+  addEventListener('resize', () => { resize(); if (reduce) draw(0); });
+  resize(); requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
