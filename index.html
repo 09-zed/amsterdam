@@ -631,10 +631,52 @@ const VOYAGE = {
     const rot = w.querySelector('.wheel-rot'), hub = w.querySelector('.wheel-hub'), pointer = w.querySelector('.wheel-pointer'),
           rMain = w.querySelector('.wr-main'), rSub = w.querySelector('.wr-sub');
     let R = 0, spinning = false, spins = 0, lastSeg = -1;
+
+    /* Sons de la roue (générés, pas de fichier) : « tac » à chaque case, trompette triste à la fin */
+    let actx = null;
+    const getCtx = () => {
+      try {
+        if (navigator.audioSession) navigator.audioSession.type = 'playback'; // iPhone : sonne même en mode silencieux, comme la musique
+        actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+        if (actx.state === 'suspended') actx.resume();
+      } catch { actx = null; }
+      return actx;
+    };
+    const tickSound = () => {
+      const c = actx; if (!c || c.state !== 'running') return;
+      const t = c.currentTime, len = Math.floor(c.sampleRate * .03);
+      const buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+      const src = c.createBufferSource(); src.buffer = buf;
+      const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2400; bp.Q.value = 1.2;
+      const g = c.createGain(); g.gain.value = 0.9;
+      src.connect(bp).connect(g).connect(c.destination); src.start(t);
+    };
+    const sadTrombone = () => {
+      const c = actx; if (!c || c.state !== 'running') return;
+      const notes = [[233.1, .32], [220, .32], [207.7, .32], [196, 1.1]];
+      let t = c.currentTime + .05;
+      const out = c.createGain(); out.gain.value = .32;
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400; lp.Q.value = 3;
+      lp.connect(out).connect(c.destination);
+      notes.forEach(([f, dur], i) => {
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = 'sawtooth'; o.frequency.setValueAtTime(f * 1.02, t); o.frequency.exponentialRampToValueAtTime(f, t + .08);
+        if (i === notes.length - 1) { // vibrato sur la dernière note
+          const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = 6; lg.gain.value = 5;
+          lfo.connect(lg).connect(o.frequency); lfo.start(t + .15); lfo.stop(t + dur);
+        }
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + .04);
+        g.gain.setValueAtTime(1, t + dur - .12); g.gain.linearRampToValueAtTime(0, t + dur);
+        o.connect(g).connect(lp); o.start(t); o.stop(t + dur + .02);
+        t += dur + .03;
+      });
+    };
     const segUnderPointer = (r) => Math.floor((((-r) % 360) + 360) % 360 / step);
     hub.addEventListener('click', () => {
       if (spinning) return;
       spinning = true; spins++;
+      getCtx();
       hub.disabled = true; w.classList.remove('has-result');
       const jitter = (Math.random() - .5) * step * .7;
       const target = ((360 - (RIGGED * step + step / 2 + jitter)) % 360 + 360) % 360;
@@ -646,9 +688,10 @@ const VOYAGE = {
         R = from + (to - from) * ease(k);
         rot.setAttribute('transform', `rotate(${R.toFixed(2)})`);
         const sIdx = segUnderPointer(R);
-        if (sIdx !== lastSeg) { lastSeg = sIdx; pointer.classList.remove('tick'); void pointer.getBBox(); pointer.classList.add('tick'); }
+        if (sIdx !== lastSeg) { lastSeg = sIdx; tickSound(); pointer.classList.remove('tick'); void pointer.getBBox(); pointer.classList.add('tick'); }
         if (k < 1) { requestAnimationFrame(frame); return; }
         spinning = false; hub.disabled = false; hub.textContent = 'Relancer';
+        sadTrombone();
         rMain.textContent = SEGS[RIGGED][1];
         rSub.textContent = SUBS[Math.min(spins, SUBS.length) - 1];
         w.classList.add('has-result');
