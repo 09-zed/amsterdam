@@ -181,6 +181,39 @@
     .arrow:hover { border-color: var(--amber); }
   }
 
+  /* Roue du destin */
+  .slide-wheel { gap: clamp(12px, 2.4dvh, 24px); }
+  .wheel-intro { font-weight: 500; font-size: 19px; color: var(--muted); text-wrap: balance; margin-top: 6px; }
+  .wheel-wrap { position: relative; width: min(80vw, 42dvh, 400px); aspect-ratio: 1; }
+  .wheel { width: 100%; height: 100%; display: block; filter: drop-shadow(0 24px 40px rgba(0,0,0,.55)) drop-shadow(0 0 40px rgba(240,164,58,.2)); }
+  .wheel .rim { fill: #0B1220; stroke: var(--amber); stroke-width: 2; }
+  .wheel text { font-family: "Big Shoulders Display", sans-serif; font-weight: 800; font-size: 11px; letter-spacing: .03em; text-transform: uppercase; }
+  .wheel .bulb { fill: #FFD79A; filter: drop-shadow(0 0 2px rgba(240,164,58,.9)); }
+  .wheel-pointer {
+    position: absolute; left: 50%; top: -10px; width: 30px; height: 38px; margin-left: -15px; z-index: 2;
+    fill: var(--paper); filter: drop-shadow(0 4px 8px rgba(0,0,0,.5));
+    transform-origin: 50% 20%;
+  }
+  .wheel-pointer.tick { animation: tick 160ms var(--ease-out); }
+  @keyframes tick { 0% { transform: rotate(-16deg); } 100% { transform: rotate(0); } }
+  .wheel-hub {
+    position: absolute; left: 50%; top: 50%; width: 27%; aspect-ratio: 1; transform: translate(-50%, -50%);
+    border-radius: 50%; border: 0; cursor: pointer; touch-action: manipulation;
+    font: inherit; font-weight: 900; font-size: clamp(16px, 2.6dvh, 22px); text-transform: uppercase; letter-spacing: .02em;
+    color: #1A1206; background: radial-gradient(circle at 50% 35%, #F6B556, var(--amber) 60%, #C9801F);
+    box-shadow: 0 0 0 4px #0B1220, 0 0 0 6px var(--amber), 0 8px 24px rgba(0,0,0,.5);
+    transition: transform 160ms var(--ease-out), opacity 200ms ease;
+  }
+  .wheel-hub:active { transform: translate(-50%, -50%) scale(.95); }
+  .wheel-hub:disabled { opacity: .85; cursor: default; }
+  .wheel-hub:focus-visible { outline: 3px solid var(--paper); outline-offset: 8px; }
+  .wheel-result { min-height: 80px; opacity: 0; transform: translateY(6px); transition: opacity 300ms var(--ease-out), transform 300ms var(--ease-out); }
+  .has-result .wheel-result { opacity: 1; transform: none; }
+  .wr-main { font-weight: 900; font-size: clamp(26px, 4.2dvh, 36px); line-height: 1.05; color: var(--amber); text-wrap: balance; text-shadow: 0 0 24px rgba(240,164,58,.3); }
+  .wr-sub { font-weight: 500; font-size: 18px; color: var(--muted); margin-top: 6px; }
+  @media (max-height: 620px) { .wheel-intro { display: none; } .wheel-wrap { width: min(74vw, 40dvh); } }
+  @media (prefers-reduced-motion: reduce) { .wheel-pointer.tick { animation: none; } }
+
   /* Billet */
   .ticket-form { width: min(100%, 360px); display: flex; flex-direction: column; align-items: stretch; gap: 14px; text-align: left; }
   .ticket-form .step-when { text-align: center; }
@@ -552,6 +585,78 @@ const VOYAGE = {
     }
     slides.append(s);
   });
+  /* ---- La roue du destin (truquée : elle tombe toujours sur le coffre) ---- */
+  {
+    const SEGS = [
+      ['La musique', 'Tu gères la musique dans la voiture.'],
+      ['Le coffre', 'Tu fais l’aller dans le coffre.'],
+      ['Le milieu', 'Tu fais le retour au milieu.'],
+      ['La tournée', 'Tu payes la première tournée.'],
+      ['Le discours', 'Tu fais le discours de minuit.'],
+      ['Le réveil', 'Tu te lèves en premier le 1er janvier.'],
+    ];
+    const RIGGED = 1; // index de la case sur laquelle la roue tombe toujours
+    const SUBS = ['Le destin a parlé.', 'Encore le coffre. Le destin insiste.', 'Tu peux tourner toute la nuit, tu sais.', 'Accepte ton destin. Prends un coussin.'];
+    const FILL = [['#F0A43A', '#1A1206'], ['#18223A', '#F4E9D6'], ['#F4E9D6', '#0B1220']];
+    const n = SEGS.length, step = 360 / n;
+    const pt = (deg, r) => { const a = (deg - 90) * Math.PI / 180; return [(Math.cos(a) * r).toFixed(2), (Math.sin(a) * r).toFixed(2)]; };
+    let svg = '';
+    SEGS.forEach(([label], i) => {
+      const [x1, y1] = pt(i * step, 92), [x2, y2] = pt((i + 1) * step, 92), [bg, fg] = FILL[i % 3];
+      svg += `<path d="M0 0 L${x1} ${y1} A92 92 0 0 1 ${x2} ${y2} Z" fill="${bg}"/>`;
+      svg += `<g transform="rotate(${i * step + step / 2 - 90})"><text x="84" y="0" fill="${fg}" text-anchor="end" dominant-baseline="central">${label}</text></g>`;
+    });
+    for (let i = 0; i < n * 2; i++) { const [x, y] = pt(i * step / 2, 96.5); svg += `<circle class="bulb" cx="${x}" cy="${y}" r="2.2"/>`; }
+
+    const w = document.createElement('section');
+    w.className = 'slide slide-step slide-wheel';
+    w.setAttribute('aria-label', 'La roue du destin');
+    w.innerHTML = `
+      <div class="wheel-head">
+        <p class="step-when">La roue du destin</p>
+        <p class="wheel-intro">Tourne la roue pour savoir ce que tu fais pendant le voyage.</p>
+      </div>
+      <div class="wheel-wrap">
+        <svg class="wheel-pointer" viewBox="0 0 24 30" aria-hidden="true"><path d="M2 2h20L12 28z"/></svg>
+        <svg class="wheel" viewBox="-100 -100 200 200" aria-hidden="true">
+          <circle r="99" class="rim"/>
+          <g class="wheel-rot">${svg}</g>
+          <circle r="92" fill="none" stroke="rgba(11,18,32,.35)" stroke-width="1"/>
+        </svg>
+        <button class="wheel-hub" type="button">Tourner</button>
+      </div>
+      <div class="wheel-result" aria-live="polite"><p class="wr-main"></p><p class="wr-sub"></p></div>`;
+    slides.append(w);
+
+    const rot = w.querySelector('.wheel-rot'), hub = w.querySelector('.wheel-hub'), pointer = w.querySelector('.wheel-pointer'),
+          rMain = w.querySelector('.wr-main'), rSub = w.querySelector('.wr-sub');
+    let R = 0, spinning = false, spins = 0, lastSeg = -1;
+    const segUnderPointer = (r) => Math.floor((((-r) % 360) + 360) % 360 / step);
+    hub.addEventListener('click', () => {
+      if (spinning) return;
+      spinning = true; spins++;
+      hub.disabled = true; w.classList.remove('has-result');
+      const jitter = (Math.random() - .5) * step * .7;
+      const target = ((360 - (RIGGED * step + step / 2 + jitter)) % 360 + 360) % 360;
+      const from = R, to = R + 360 * (reduce ? 1 : 5) + ((target - (R % 360)) % 360 + 360) % 360;
+      const dur = reduce ? 900 : 5200, t0 = performance.now();
+      const ease = (x) => 1 - Math.pow(1 - x, 4);
+      const frame = (now) => {
+        const k = Math.min(1, (now - t0) / dur);
+        R = from + (to - from) * ease(k);
+        rot.setAttribute('transform', `rotate(${R.toFixed(2)})`);
+        const sIdx = segUnderPointer(R);
+        if (sIdx !== lastSeg) { lastSeg = sIdx; pointer.classList.remove('tick'); void pointer.getBBox(); pointer.classList.add('tick'); }
+        if (k < 1) { requestAnimationFrame(frame); return; }
+        spinning = false; hub.disabled = false; hub.textContent = 'Relancer';
+        rMain.textContent = SEGS[RIGGED][1];
+        rSub.textContent = SUBS[Math.min(spins, SUBS.length) - 1];
+        w.classList.add('has-result');
+      };
+      requestAnimationFrame(frame);
+    });
+  }
+
   /* ---- Générateur de billet ---- */
   {
     const t = document.createElement('section');
