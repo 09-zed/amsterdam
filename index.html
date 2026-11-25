@@ -181,6 +181,30 @@
     .arrow:hover { border-color: var(--amber); }
   }
 
+  /* Étape secrète */
+  [hidden] { display: none !important; }
+  .lock { width: 30%; height: 30%; color: var(--amber); opacity: .85; filter: drop-shadow(0 0 18px rgba(240,164,58,.45)); }
+  .secret-locked { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .code-form { display: flex; gap: 10px; align-items: center; }
+  .code-form input {
+    font: inherit; font-weight: 800; font-size: 22px; letter-spacing: .08em; text-align: center;
+    width: 160px; min-height: 52px; padding: 0 16px; border-radius: 999px;
+    background: rgba(244,233,214,.07); color: var(--paper); border: 1.5px solid rgba(244,233,214,.35);
+  }
+  .code-form input::placeholder { color: var(--muted); letter-spacing: .02em; font-weight: 500; }
+  .code-form input:focus-visible { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px rgba(240,164,58,.25); }
+  .code-form .btn { font-size: 20px; min-width: 0; min-height: 52px; padding: 0 22px; }
+  .code-error { min-height: 22px; font-weight: 500; font-size: 18px; color: #FFB4A0; }
+  .shake { animation: shake 360ms var(--ease-out); }
+  @keyframes shake { 20% { transform: translateX(-8px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(2px); } }
+  .revealed .art img, .revealed .secret-open { animation: reveal 700ms var(--ease-out) both; }
+  .revealed .secret-open { animation-delay: 150ms; }
+  @keyframes reveal { from { opacity: 0; transform: scale(.96); } }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shake, .revealed .art img, .revealed .secret-open { animation: none; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .intro, .deck, .vinyl, .ring, .countdown, .caption, .dots, .btn { transition-duration: 1ms !important; transition-delay: 0ms !important; }
   }
@@ -244,6 +268,14 @@ const VOYAGE = {
     ['31 au soir', 'Réveillon et feux d’artifice', 'assets/etape-3.webp'],
     ['1er janv.', 'Grasse mat’ puis retour', 'assets/etape-4.webp'],
   ],
+  // Dernière étape, visible seulement avec le code.
+  // codeHash = empreinte SHA-256 du code (en minuscules, sans espaces autour) : le code lui-même n’est pas dans la page.
+  secret: {
+    codeHash: '5ad4fca71d720f79036d7ba27b999f6a423d69b57877558d43e5d6bdd7b7a8a9', // code provisoire : 3112
+    when: 'Surprise',
+    what: 'Contenu à venir',
+    img: '',
+  },
 };
 /* ====================================================== */
 (() => {
@@ -328,6 +360,55 @@ const VOYAGE = {
     }
     slides.append(s);
   });
+  /* ---- Étape secrète ---- */
+  const sec = VOYAGE.secret;
+  if (sec) {
+    const s = document.createElement('section');
+    s.className = 'slide slide-step slide-secret';
+    s.setAttribute('aria-label', 'Étape secrète');
+    s.innerHTML = `
+      <div class="art">
+        <svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>
+      </div>
+      <div class="secret-locked">
+        <p class="step-when">Étape secrète</p>
+        <form class="code-form" novalidate>
+          <label class="sr-only" for="code">Code</label>
+          <input id="code" name="code" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Le code">
+          <button class="btn btn-yes" type="submit">Ouvrir</button>
+        </form>
+        <p class="code-error" id="codeError" role="alert"></p>
+      </div>
+      <div class="secret-open" hidden><p class="step-when"></p><p class="step-what"></p></div>`;
+    slides.append(s);
+    const form = s.querySelector('form'), input = s.querySelector('input'), err = s.querySelector('#codeError');
+    const hash = async (txt) => {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt.trim().toLowerCase()));
+      return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+    };
+    const unlock = (instant) => {
+      s.querySelector('.secret-open .step-when').textContent = sec.when;
+      s.querySelector('.secret-open .step-what').textContent = sec.what;
+      s.querySelector('.secret-locked').hidden = true;
+      s.querySelector('.secret-open').hidden = false;
+      s.querySelector('.lock').remove();
+      if (sec.img) { const im = new Image(); im.alt = sec.what; im.src = sec.img; s.querySelector('.art').append(im); }
+      if (!instant) s.classList.add('revealed');
+      try { localStorage.setItem('amsterdam-secret', sec.codeHash); } catch {}
+    };
+    try { if (localStorage.getItem('amsterdam-secret') === sec.codeHash) unlock(true); } catch {}
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!input.value.trim()) { err.textContent = 'Tape le code pour ouvrir l’étape.'; input.focus(); return; }
+      if (await hash(input.value) === sec.codeHash) { err.textContent = ''; input.blur(); unlock(false); }
+      else {
+        err.textContent = 'Mauvais code, réessaie.';
+        form.classList.remove('shake'); void form.offsetWidth; form.classList.add('shake');
+        input.select();
+      }
+    });
+  }
+
   const count = slides.children.length;
   for (let i = 0; i < count; i++) {
     const d = document.createElement('button');
@@ -346,6 +427,7 @@ const VOYAGE = {
   $('next').addEventListener('click', () => goTo(index + 1));
   addEventListener('keydown', (e) => {
     if (!body.classList.contains('playing-screen')) return;
+    if (e.target.closest('input')) return; // on tape le code : pas de navigation
     if (e.key === 'ArrowRight') goTo(index + 1, false);
     if (e.key === 'ArrowLeft') goTo(index - 1, false);
   });
