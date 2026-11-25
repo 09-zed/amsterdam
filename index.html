@@ -181,6 +181,76 @@
     .arrow:hover { border-color: var(--amber); }
   }
 
+  /* Billet */
+  .ticket-form { width: min(100%, 360px); display: flex; flex-direction: column; align-items: stretch; gap: 14px; text-align: left; }
+  .ticket-form .step-when { text-align: center; }
+  .ticket-intro { font-weight: 500; font-size: 20px; color: var(--muted); text-align: center; text-wrap: balance; margin-bottom: 4px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-weight: 800; font-size: 16px; letter-spacing: .04em; text-transform: uppercase; color: var(--paper); }
+  .field input {
+    font: inherit; font-weight: 800; font-size: 22px; min-height: 52px; padding: 0 18px; border-radius: 14px;
+    background: rgba(244,233,214,.07); color: var(--paper); border: 1.5px solid rgba(244,233,214,.3);
+  }
+  .field input::placeholder { color: var(--muted); font-weight: 500; }
+  .field input:focus-visible { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px rgba(240,164,58,.25); }
+  .ticket-form .code-error { min-height: 22px; text-align: center; }
+  .ticket-form .btn { font-size: 22px; }
+
+  .ticket-out { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .printer { overflow: hidden; padding: 0 12px 24px; margin: 0 -12px -24px; }
+  .ticket {
+    --ink: #0B1220; --cream: #F4E9D6; --stub: 112px;
+    width: min(84vw, 360px); color: var(--ink);
+    background:
+      radial-gradient(120% 80% at 100% 0%, rgba(240,164,58,.22), transparent 55%),
+      var(--cream);
+    border-radius: 18px;
+    filter: drop-shadow(0 24px 40px rgba(0,0,0,.55)) drop-shadow(0 0 30px rgba(240,164,58,.15));
+    -webkit-mask:
+      radial-gradient(circle 13px at 0 calc(100% - var(--stub)), #0000 97%, #000) ,
+      radial-gradient(circle 13px at 100% calc(100% - var(--stub)), #0000 97%, #000);
+    -webkit-mask-composite: source-in; mask-composite: intersect;
+    text-align: left;
+  }
+  .ticket.printing { animation: print 1100ms var(--ease-out) both; }
+  @keyframes print { from { transform: translateY(-104%); } }
+  .t-main { padding: 18px 22px 18px; }
+  .t-head { display: flex; justify-content: space-between; gap: 12px; font-weight: 800; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; opacity: .7; margin-bottom: 14px; }
+  .t-no { font-variant-numeric: tabular-nums; }
+  .t-label { font-weight: 800; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #9A5310; }
+  .t-dest { font-weight: 900; font-size: clamp(46px, 13vw, 58px); line-height: .9; text-transform: uppercase; margin: 2px 0 12px; letter-spacing: -.005em; }
+  .t-name { font-weight: 900; font-size: 28px; line-height: 1.02; text-transform: uppercase; overflow-wrap: anywhere; margin-top: 2px; }
+  .t-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin: 16px 0 0; }
+  .t-grid dt { font-weight: 800; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #9A5310; }
+  .t-grid dd { margin: 0; font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .t-stub {
+    height: var(--stub); padding: 16px 22px 14px; display: flex; flex-direction: column; justify-content: center; gap: 8px;
+    border-top: 2px dashed rgba(11,18,32,.28); margin: 0 14px; padding-left: 8px; padding-right: 8px;
+  }
+  .t-barcode { width: 100%; height: 46px; fill: var(--ink); }
+  .t-sound { font-weight: 500; font-size: 15px; opacity: .75; }
+  .t-edit {
+    font: inherit; font-weight: 500; font-size: 18px; color: var(--muted); background: none; border: 0;
+    min-height: 44px; padding: 0 12px; cursor: pointer; text-decoration: underline; text-underline-offset: 4px;
+  }
+  .t-edit:focus-visible { outline: 3px solid var(--paper); outline-offset: 2px; border-radius: 8px; }
+  @media (prefers-reduced-motion: reduce) { .ticket.printing { animation: none; } }
+  @media (max-height: 760px) {
+    .slide-ticket { padding-top: calc(env(safe-area-inset-top) + 84px); }
+    .ticket { --stub: 84px; }
+    .t-main { padding: 14px 18px 12px; }
+    .t-head { margin-bottom: 8px; font-size: 12px; }
+    .t-dest { font-size: 40px; margin-bottom: 8px; }
+    .t-name { font-size: 22px; }
+    .t-grid { gap: 6px 14px; margin-top: 10px; }
+    .t-grid dd { font-size: 17px; }
+    .t-label, .t-grid dt { font-size: 12px; }
+    .t-stub { gap: 6px; padding-top: 12px; padding-bottom: 10px; }
+    .t-barcode { height: 32px; }
+    .t-sound { font-size: 13px; }
+    .ticket-out { gap: 2px; }
+  }
+
   /* Étape secrète */
   [hidden] { display: none !important; }
   .slide-secret.is-locked .art { display: none; }
@@ -305,6 +375,7 @@
 /* ====== À MODIFIER : date de départ et programme ====== */
 const VOYAGE = {
   depart: '2026-12-31T10:00:00+01:00', // date et heure de départ (heure de Paris)
+  retour: '2027-01-01', // date de retour (pour le billet)
   // [date, texte, image] — une étape par écran
   programme: [
     ['31 déc.', 'Arrivée et balade le long des canaux', 'assets/etape-1.webp'],
@@ -404,6 +475,97 @@ const VOYAGE = {
     }
     slides.append(s);
   });
+  /* ---- Générateur de billet ---- */
+  {
+    const t = document.createElement('section');
+    t.className = 'slide slide-step slide-ticket';
+    t.setAttribute('aria-label', 'Ton billet');
+    t.innerHTML = `
+      <form class="ticket-form" novalidate>
+        <p class="step-when">Ton billet</p>
+        <p class="ticket-intro">Écris ton nom, on t’imprime ton billet pour Amsterdam.</p>
+        <div class="field">
+          <label for="tFirst">Prénom</label>
+          <input id="tFirst" name="given-name" type="text" autocomplete="given-name" autocapitalize="words" spellcheck="false" maxlength="24" placeholder="Ton prénom">
+        </div>
+        <div class="field">
+          <label for="tLast">Nom</label>
+          <input id="tLast" name="family-name" type="text" autocomplete="family-name" autocapitalize="words" spellcheck="false" maxlength="24" placeholder="Ton nom">
+        </div>
+        <p class="code-error" id="tErr" role="alert"></p>
+        <button class="btn btn-yes" type="submit">Imprimer mon billet</button>
+      </form>
+      <div class="ticket-out" hidden>
+        <div class="printer">
+          <article class="ticket" aria-label="Billet pour Amsterdam">
+            <div class="t-main">
+              <div class="t-head"><span>Billet aller-retour</span><span class="t-no" data-f="no"></span></div>
+              <p class="t-label">Destination</p>
+              <p class="t-dest">Amsterdam</p>
+              <p class="t-label">Passager</p>
+              <p class="t-name" data-f="name"></p>
+              <dl class="t-grid">
+                <div><dt>Départ</dt><dd data-f="dep"></dd></div>
+                <div><dt>Retour</dt><dd data-f="ret"></dd></div>
+                <div><dt>Embarquement</dt><dd data-f="time"></dd></div>
+                <div><dt>Place</dt><dd data-f="seat"></dd></div>
+              </dl>
+            </div>
+            <div class="t-stub">
+              <svg class="t-barcode" data-f="bars" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"></svg>
+              <p class="t-sound">Bande-son : Amsterdam, Moha La&nbsp;Squale</p>
+            </div>
+          </article>
+        </div>
+        <button class="t-edit" type="button">Changer le nom</button>
+      </div>`;
+    slides.append(t);
+
+    const form = t.querySelector('form'), out = t.querySelector('.ticket-out'), ticket = t.querySelector('.ticket');
+    const first = t.querySelector('#tFirst'), last = t.querySelector('#tLast'), tErr = t.querySelector('#tErr');
+    const f = (k) => t.querySelector(`[data-f="${k}"]`);
+    const hashStr = (str) => { let h = 2166136261; for (const c of str) { h ^= c.codePointAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+    const fmt = (d) => new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Paris' }).format(d);
+    const SEATS = ['Arrière gauche', 'Arrière droite', 'Avant droite', 'Arrière milieu'];
+
+    const render = (fn, ln, animate) => {
+      const key = (fn + ' ' + ln).trim().toLowerCase();
+      const h = hashStr(key);
+      const dep = new Date(VOYAGE.depart);
+      f('name').textContent = (fn + ' ' + ln).trim();
+      f('dep').textContent = fmt(dep);
+      f('ret').textContent = VOYAGE.retour ? fmt(new Date(VOYAGE.retour + 'T12:00:00')) : '—';
+      f('time').textContent = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' }).format(dep).replace(':', ' h ');
+      f('seat').textContent = SEATS[h % SEATS.length];
+      f('no').textContent = 'N° AMS-' + String(h % 10000).padStart(4, '0');
+      // code-barres décoratif, propre à chaque nom
+      let x = 0, bars = '', r = h || 1;
+      while (x < 100) { r = Math.imul(r ^ (r >>> 15), 2246822507) >>> 0; const w = 0.6 + (r % 4) * 0.55; if ((r >>> 8) % 3) bars += `<rect x="${x.toFixed(2)}" width="${w.toFixed(2)}" height="24"/>`; x += w + 0.7 + ((r >>> 4) % 3) * 0.45; }
+      f('bars').innerHTML = bars;
+      form.hidden = true; out.hidden = false;
+      ticket.classList.remove('printing');
+      if (animate) { void ticket.offsetWidth; ticket.classList.add('printing'); }
+    };
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const fn = first.value.trim(), ln = last.value.trim();
+      if (!fn) { tErr.textContent = 'Écris ton prénom.'; first.focus(); return; }
+      if (!ln) { tErr.textContent = 'Écris ton nom.'; last.focus(); return; }
+      tErr.textContent = '';
+      document.activeElement.blur();
+      render(fn, ln, !reduce);
+      try { localStorage.setItem('amsterdam-ticket', JSON.stringify([fn, ln])); } catch {}
+    });
+    t.querySelector('.t-edit').addEventListener('click', () => {
+      out.hidden = true; form.hidden = false; first.focus({ preventScroll: true });
+    });
+    try {
+      const saved = JSON.parse(localStorage.getItem('amsterdam-ticket') || 'null');
+      if (saved) { first.value = saved[0]; last.value = saved[1]; render(saved[0], saved[1], false); }
+    } catch {}
+  }
+
   /* ---- Étape secrète ---- */
   const sec = VOYAGE.secret;
   if (sec) {
