@@ -35,6 +35,9 @@
     -webkit-tap-highlight-color: transparent;
   }
   #stars { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #fireworks { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
+  .fw-hint { font-weight: 500; font-size: 17px; color: var(--muted); margin-top: 10px; }
+  @media (max-height: 620px) { .fw-hint { display: none; } }
   .grain {
     position: fixed; inset: -50%; pointer-events: none; opacity: .09; mix-blend-mode: overlay;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
@@ -440,6 +443,7 @@
 </head>
 <body>
   <canvas id="stars" aria-hidden="true"></canvas>
+  <canvas id="fireworks" aria-hidden="true"></canvas>
   <div class="grain" aria-hidden="true"></div>
   <div class="safe-probe" id="safeProbe" aria-hidden="true"></div>
 
@@ -490,11 +494,12 @@
 /* ====== À MODIFIER : date de départ et programme ====== */
 const VOYAGE = {
   depart: '2026-12-31T10:00:00+01:00', // date et heure de départ (heure de Paris)
+  nouvelAn: '2027-01-01T00:00:00+01:00', // minuit : grand feu d’artifice
   retour: '2027-01-01', // date de retour (pour le billet)
   // [date, texte, image] — une étape par écran
   programme: [
     ['31 déc.', 'Arrivée et balade le long des canaux', 'assets/etape-1.webp'],
-    ['31 au soir', 'Réveillon et feux d’artifice', 'assets/etape-3.webp'],
+    ['31 au soir', 'Réveillon et feux d’artifice', 'assets/etape-3.webp', 'feux'], // 'feux' : on touche l’écran pour lancer des feux d’artifice
     ['1er janv.', 'Grasse mat’ puis retour', 'assets/etape-4.webp'],
   ],
   // Dernière étape, visible seulement avec le code.
@@ -572,15 +577,92 @@ const VOYAGE = {
     if (Math.hypot(dx, dy) <= r.width / 2) toggle();
   });
 
+  /* ---- Feux d'artifice (canvas + sons générés) ---- */
+  const fw = (() => {
+    const cv = $('fireworks'), c = cv.getContext('2d');
+    const COLORS = ['#F0A43A', '#FFC874', '#FFD79A', '#F4E9D6', '#E8892A', '#FFFFFF'];
+    let parts = [], rockets = [], running = false, last = 0, W = 0, H = 0, actx = null;
+    const size = () => { const dpr = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight; cv.width = W * dpr; cv.height = H * dpr; c.setTransform(dpr, 0, 0, dpr, 0, 0); };
+    size(); addEventListener('resize', size);
+    const audio = () => {
+      try {
+        if (navigator.audioSession) navigator.audioSession.type = 'playback';
+        actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+        if (actx.state === 'suspended') actx.resume();
+      } catch { actx = null; }
+      return actx && actx.state === 'running' ? actx : null;
+    };
+    const noise = (cx, dur) => { const len = Math.floor(cx.sampleRate * dur), b = cx.createBuffer(1, len, cx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1; const src = cx.createBufferSource(); src.buffer = b; return src; };
+    const whoosh = () => { const cx = audio(); if (!cx) return; const t = cx.currentTime, src = noise(cx, .7), f = cx.createBiquadFilter(), g = cx.createGain();
+      f.type = 'bandpass'; f.Q.value = 2; f.frequency.setValueAtTime(600, t); f.frequency.exponentialRampToValueAtTime(3200, t + .6);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.12, t + .1); g.gain.linearRampToValueAtTime(0, t + .65);
+      src.connect(f).connect(g).connect(cx.destination); src.start(t); };
+    const boom = () => { const cx = audio(); if (!cx) return; const t = cx.currentTime, src = noise(cx, 1.6), f = cx.createBiquadFilter(), g = cx.createGain();
+      f.type = 'lowpass'; f.frequency.setValueAtTime(1800, t); f.frequency.exponentialRampToValueAtTime(120, t + 1.2);
+      g.gain.setValueAtTime(.9, t); g.gain.exponentialRampToValueAtTime(.001, t + 1.5);
+      src.connect(f).connect(g).connect(cx.destination); src.start(t);
+      // crépitement
+      for (let k = 0; k < 14; k++) { const tt = t + .25 + Math.random() * .9, s2 = noise(cx, .02), hp = cx.createBiquadFilter(), g2 = cx.createGain();
+        hp.type = 'highpass'; hp.frequency.value = 3000; g2.gain.setValueAtTime(.18 * Math.random(), tt); g2.gain.exponentialRampToValueAtTime(.001, tt + .03);
+        s2.connect(hp).connect(g2).connect(cx.destination); s2.start(tt); } };
+    const explode = (x, y) => {
+      const n = 70 + Math.floor(Math.random() * 40), base = COLORS[Math.floor(Math.random() * 4)], speed = 2.2 + Math.random() * 2.2, ring = Math.random() < .3;
+      for (let i = 0; i < n; i++) {
+        const a = Math.PI * 2 * i / n + Math.random() * .1, v = ring ? speed : speed * (.35 + Math.random() * .75);
+        parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, decay: .008 + Math.random() * .01,
+          color: Math.random() < .15 ? '#FFFFFF' : base, r: 1.2 + Math.random() * 1.4, flicker: Math.random() < .4 });
+      }
+      boom(); start();
+    };
+    const launch = (tx, ty) => {
+      if (reduce) return;
+      tx = tx ?? W * (.2 + Math.random() * .6); ty = ty ?? H * (.12 + Math.random() * .3);
+      const x0 = tx + (Math.random() - .5) * W * .2;
+      rockets.push({ x: x0, y: H + 10, tx, ty, t: 0, dur: 650 + Math.random() * 300, x0, y0: H + 10 });
+      whoosh(); start();
+    };
+    const show = (count = 12, every = 420) => { if (reduce) return; for (let i = 0; i < count; i++) setTimeout(() => launch(), i * every + Math.random() * 200); };
+    const frame = (now) => {
+      const dt = Math.min(now - last, 48); last = now;
+      c.clearRect(0, 0, W, H);
+      c.globalCompositeOperation = 'lighter';
+      rockets = rockets.filter(r => {
+        r.t += dt; const k = Math.min(1, r.t / r.dur), e = 1 - Math.pow(1 - k, 2);
+        const px = r.x, py = r.y; r.x = r.x0 + (r.tx - r.x0) * e; r.y = r.y0 + (r.ty - r.y0) * e;
+        c.strokeStyle = 'rgba(255,215,154,.9)'; c.lineWidth = 2; c.beginPath(); c.moveTo(px, py + 14); c.lineTo(r.x, r.y); c.stroke();
+        if (k >= 1) { explode(r.tx, r.ty); return false; } return true;
+      });
+      const f = dt / 16.7;
+      parts = parts.filter(p => {
+        p.vx *= Math.pow(.985, f); p.vy = p.vy * Math.pow(.985, f) + .045 * f; p.x += p.vx * f; p.y += p.vy * f; p.life -= p.decay * f;
+        if (p.life <= 0) return false;
+        c.globalAlpha = p.flicker ? p.life * (.5 + Math.random() * .5) : p.life;
+        c.fillStyle = p.color; c.beginPath(); c.arc(p.x, p.y, p.r, 0, 7); c.fill();
+        return true;
+      });
+      c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+      if (parts.length || rockets.length) requestAnimationFrame(frame); else { running = false; c.clearRect(0, 0, W, H); }
+    };
+    function start() { if (!running) { running = true; last = performance.now(); requestAnimationFrame(frame); } }
+    return { launch, show, unlockAudio: audio };
+  })();
+
   /* ---- Étapes ---- */
-  VOYAGE.programme.forEach(([when, what, img], i) => {
+  let fwSlide = null;
+  VOYAGE.programme.forEach(([when, what, img, extra], i) => {
     const s = document.createElement('section');
     s.className = 'slide slide-step';
+    if (extra === 'feux') { fwSlide = s; s.classList.add('has-fw'); }
     s.setAttribute('aria-label', `Étape ${i + 1} sur ${VOYAGE.programme.length}`);
     s.innerHTML = `<div class="art"><span class="placeholder">Illustration à venir</span></div>
       <div><p class="step-when"></p><p class="step-what"></p></div>`;
     s.querySelector('.step-when').textContent = when;
     s.querySelector('.step-what').textContent = what;
+    if (extra === 'feux' && !reduce) {
+      const h = document.createElement('p'); h.className = 'fw-hint'; h.textContent = 'Touche l’écran pour lancer des feux d’artifice';
+      s.lastElementChild.append(h);
+      s.addEventListener('click', (e) => { if (e.target.closest('button, a')) return; fw.unlockAudio(); fw.launch(e.clientX, Math.min(e.clientY, innerHeight * .55)); });
+    }
     if (img) {
       const im = new Image();
       im.alt = what; im.decoding = 'async';
@@ -1316,6 +1398,7 @@ const VOYAGE = {
     const i = Math.round(slides.scrollLeft / w);
     if (i !== index || !dots.children[i].hasAttribute('aria-current')) {
       index = i;
+      if (slides.children[i] === fwSlide && !fwSlide.dataset.shown) { fwSlide.dataset.shown = '1'; fw.unlockAudio(); fw.show(3, 500); }
       [...dots.children].forEach((d, k) => d.setAttribute('aria-current', String(k === i)));
       $('prev').disabled = i === 0; $('next').disabled = i === count - 1;
     }
@@ -1328,9 +1411,23 @@ const VOYAGE = {
   /* ---- Compte à rebours ---- */
   const depart = new Date(VOYAGE.depart).getTime();
   const pad2 = (n) => String(n).padStart(2, '0');
+  const newYear = new Date(VOYAGE.nouvelAn).getTime();
+  let nyShown = false;
   const tick = () => {
     const ms = depart - Date.now();
-    if (ms <= 0) { $('cdLabel').textContent = 'Amsterdam'; $('cdBig').textContent = 'On y est'; $('cdSmall').textContent = ''; return; }
+    if (ms <= 0) {
+      const toNY = newYear - Date.now();
+      if (toNY > 10000) { // en route : compte à rebours jusqu'à minuit
+        const h = Math.floor(toNY / 36e5), m = Math.floor(toNY / 6e4) % 60, s = Math.floor(toNY / 1e3) % 60;
+        $('cdLabel').textContent = 'Minuit dans'; $('cdBig').textContent = `${h}\u00A0h ${pad2(m)}`; $('cdSmall').textContent = `${pad2(s)}\u00A0s`;
+      } else if (toNY > 0) { // les 10 dernières secondes
+        $('cdLabel').textContent = 'Minuit dans'; $('cdBig').textContent = String(Math.ceil(toNY / 1000)); $('cdSmall').textContent = '';
+      } else if (toNY > -6 * 36e5) { // bonne année !
+        $('cdLabel').textContent = '2027'; $('cdBig').textContent = 'Bonne année'; $('cdSmall').textContent = 'Amsterdam';
+        if (!nyShown && toNY > -10 * 6e4) { nyShown = true; fw.show(24, 380); }
+      } else { $('cdLabel').textContent = 'Amsterdam'; $('cdBig').textContent = 'On y était'; $('cdSmall').textContent = ''; }
+      return;
+    }
     const d = Math.floor(ms / 864e5), h = Math.floor(ms / 36e5) % 24, m = Math.floor(ms / 6e4) % 60, s = Math.floor(ms / 1e3) % 60;
     $('cdBig').textContent = d > 0 ? `J-${d}` : 'Jour J';
     $('cdSmall').textContent = `${h} h ${pad2(m)} min ${pad2(s)} s`;
