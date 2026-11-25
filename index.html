@@ -183,17 +183,27 @@
 
   /* Étape secrète */
   [hidden] { display: none !important; }
-  .lock { width: 30%; height: 30%; color: var(--amber); opacity: .85; filter: drop-shadow(0 0 18px rgba(240,164,58,.45)); }
-  .secret-locked { display: flex; flex-direction: column; align-items: center; gap: 14px; }
-  .code-form { display: flex; gap: 10px; align-items: center; }
-  .code-form input {
-    font: inherit; font-weight: 800; font-size: 22px; letter-spacing: .08em; text-align: center;
-    width: 160px; min-height: 52px; padding: 0 16px; border-radius: 999px;
-    background: rgba(244,233,214,.07); color: var(--paper); border: 1.5px solid rgba(244,233,214,.35);
+  .slide-secret.is-locked .art { display: none; }
+  .secret-locked { display: flex; flex-direction: column; align-items: center; gap: clamp(10px, 2dvh, 18px); }
+  .lock { width: 40px; height: 40px; color: var(--amber); filter: drop-shadow(0 0 14px rgba(240,164,58,.45)); }
+  .pin { display: flex; gap: 16px; height: 16px; align-items: center; }
+  .pin span { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid rgba(244,233,214,.55); transition: background-color 120ms ease, border-color 120ms ease; }
+  .pin span.on { background: var(--paper); border-color: var(--paper); }
+  .pin.ok span { background: var(--amber); border-color: var(--amber); }
+  .keypad { display: grid; grid-template-columns: repeat(3, var(--key)); gap: clamp(10px, 1.8dvh, 16px) 22px; --key: clamp(58px, 9dvh, 76px); margin-top: 4px; }
+  .key {
+    width: var(--key); height: var(--key); border-radius: 50%;
+    font: inherit; font-weight: 800; font-size: calc(var(--key) * .42); color: var(--paper);
+    background: rgba(244,233,214,.08); border: 1px solid rgba(244,233,214,.16);
+    cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none;
+    display: grid; place-items: center;
+    transition: transform 160ms var(--ease-out), background-color 120ms ease;
   }
-  .code-form input::placeholder { color: var(--muted); letter-spacing: .02em; font-weight: 500; }
-  .code-form input:focus-visible { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px rgba(240,164,58,.25); }
-  .code-form .btn { font-size: 20px; min-width: 0; min-height: 52px; padding: 0 22px; }
+  .key:active { transform: scale(.94); background: rgba(240,164,58,.35); }
+  .key:focus-visible { outline: 3px solid var(--paper); outline-offset: 3px; }
+  .key-del { background: none; border-color: transparent; }
+  .key-del svg { width: 42%; height: 42%; }
+  @media (hover: hover) and (pointer: fine) { .key:hover { background: rgba(244,233,214,.14); } }
   .code-error { min-height: 22px; font-weight: 500; font-size: 18px; color: #FFB4A0; }
   .shake { animation: shake 360ms var(--ease-out); }
   @keyframes shake { 20% { transform: translateX(-8px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(2px); } }
@@ -203,7 +213,7 @@
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
   @media (prefers-reduced-motion: reduce) {
-    .shake, .revealed .art img, .revealed .secret-open { animation: none; }
+    .pin.shake, .revealed .art img, .revealed .secret-open { animation: none; }
   }
   @media (prefers-reduced-motion: reduce) {
     .intro, .deck, .vinyl, .ring, .countdown, .caption, .dots, .btn { transition-duration: 1ms !important; transition-delay: 0ms !important; }
@@ -271,7 +281,8 @@ const VOYAGE = {
   // Dernière étape, visible seulement avec le code.
   // codeHash = empreinte SHA-256 du code (en minuscules, sans espaces autour) : le code lui-même n’est pas dans la page.
   secret: {
-    codeHash: '5ad4fca71d720f79036d7ba27b999f6a423d69b57877558d43e5d6bdd7b7a8a9', // code provisoire : 3112
+    codeHash: 'a20a2b7bb0842d5cf8a0c06c626421fd51ec103925c1819a51271f2779afa730',
+    length: 4, // nombre de chiffres du code
     when: 'Bonus',
     what: 'Demi-tour en scred pour fumer un dernier zdeh',
     img: 'assets/etape-secrete.webp',
@@ -364,49 +375,73 @@ const VOYAGE = {
   const sec = VOYAGE.secret;
   if (sec) {
     const s = document.createElement('section');
-    s.className = 'slide slide-step slide-secret';
+    s.className = 'slide slide-step slide-secret is-locked';
     s.setAttribute('aria-label', 'Étape secrète');
+    const LEN = sec.length || 4;
     s.innerHTML = `
-      <div class="art">
-        <svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>
-      </div>
+      <div class="art"></div>
       <div class="secret-locked">
+        <svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>
         <p class="step-when">Étape secrète</p>
-        <form class="code-form" novalidate>
-          <label class="sr-only" for="code">Code</label>
-          <input id="code" name="code" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Le code">
-          <button class="btn btn-yes" type="submit">Ouvrir</button>
-        </form>
+        <div class="pin" role="status" aria-label="Code : 0 chiffre sur ${LEN}">${'<span></span>'.repeat(LEN)}</div>
+        <div class="keypad" role="group" aria-label="Clavier du code">
+          ${[1,2,3,4,5,6,7,8,9].map(n => `<button type="button" class="key" data-k="${n}">${n}</button>`).join('')}
+          <span></span>
+          <button type="button" class="key" data-k="0">0</button>
+          <button type="button" class="key key-del" data-k="del" aria-label="Effacer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6-7z"/><path d="M12 9.5l5 5M17 9.5l-5 5"/></svg></button>
+        </div>
         <p class="code-error" id="codeError" role="alert"></p>
       </div>
       <div class="secret-open" hidden><p class="step-when"></p><p class="step-what"></p></div>`;
     slides.append(s);
-    const form = s.querySelector('form'), input = s.querySelector('input'), err = s.querySelector('#codeError');
+    const pin = s.querySelector('.pin'), err = s.querySelector('#codeError');
     const hash = async (txt) => {
       const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt.trim().toLowerCase()));
       return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
     };
+    let locked = true, entry = '', checking = false;
     const unlock = (instant) => {
+      locked = false;
       s.querySelector('.secret-open .step-when').textContent = sec.when;
       s.querySelector('.secret-open .step-what').textContent = sec.what;
       s.querySelector('.secret-locked').hidden = true;
       s.querySelector('.secret-open').hidden = false;
-      s.querySelector('.lock').remove();
+      s.classList.remove('is-locked');
       if (sec.img) { const im = new Image(); im.alt = sec.what; im.src = sec.img; s.querySelector('.art').append(im); }
       if (!instant) s.classList.add('revealed');
       try { localStorage.setItem('amsterdam-secret', sec.codeHash); } catch {}
     };
-    try { if (localStorage.getItem('amsterdam-secret') === sec.codeHash) unlock(true); } catch {}
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!input.value.trim()) { err.textContent = 'Tape le code pour ouvrir l’étape.'; input.focus(); return; }
-      if (await hash(input.value) === sec.codeHash) { err.textContent = ''; input.blur(); unlock(false); }
-      else {
-        err.textContent = 'Mauvais code, réessaie.';
-        form.classList.remove('shake'); void form.offsetWidth; form.classList.add('shake');
-        input.select();
+    const renderPin = () => {
+      [...pin.children].forEach((d, i) => d.classList.toggle('on', i < entry.length));
+      pin.setAttribute('aria-label', `Code : ${entry.length} chiffre${entry.length > 1 ? 's' : ''} sur ${LEN}`);
+    };
+    const press = async (k) => {
+      if (!locked || checking) return;
+      if (k === 'del') { entry = entry.slice(0, -1); renderPin(); return; }
+      if (entry.length >= LEN) return;
+      entry += k; err.textContent = ''; renderPin();
+      if (entry.length === LEN) {
+        checking = true;
+        const ok = await hash(entry) === sec.codeHash;
+        if (ok) { pin.classList.add('ok'); setTimeout(() => unlock(false), 250); }
+        else {
+          err.textContent = 'Mauvais code, réessaie.';
+          pin.classList.remove('shake'); void pin.offsetWidth; pin.classList.add('shake');
+          setTimeout(() => { entry = ''; renderPin(); }, 400);
+        }
+        setTimeout(() => { checking = false; }, 400);
       }
+    };
+    s.querySelector('.keypad').addEventListener('click', (e) => {
+      const key = e.target.closest('.key'); if (key) press(key.dataset.k);
     });
+    // Sur ordi : on peut aussi taper le code au clavier
+    addEventListener('keydown', (e) => {
+      if (!locked || !body.classList.contains('playing-screen') || index !== count - 1) return;
+      if (/^[0-9]$/.test(e.key)) press(e.key);
+      else if (e.key === 'Backspace') press('del');
+    });
+    try { if (localStorage.getItem('amsterdam-secret') === sec.codeHash) unlock(true); } catch {}
   }
 
   const count = slides.children.length;
