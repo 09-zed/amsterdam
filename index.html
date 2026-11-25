@@ -37,6 +37,9 @@
   #stars { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   #fireworks { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
   .fw-hint { font-weight: 500; font-size: 17px; color: var(--muted); margin-top: 10px; }
+  .slide-dd { justify-content: flex-end; }
+  .dd-hint { font-weight: 500; font-size: 17px; color: var(--muted); margin-bottom: 16px; }
+  .dd-static { margin: auto; font-weight: 900; font-size: clamp(120px, 30vw, 260px); color: var(--amber); text-shadow: 0 0 40px rgba(240,164,58,.5); }
   @media (max-height: 620px) { .fw-hint { display: none; } }
   .grain {
     position: fixed; inset: -50%; pointer-events: none; opacity: .09; mix-blend-mode: overlay;
@@ -630,7 +633,7 @@ const VOYAGE = {
         r.t += dt; const k = Math.min(1, r.t / r.dur), e = 1 - Math.pow(1 - k, 2);
         const px = r.x, py = r.y; r.x = r.x0 + (r.tx - r.x0) * e; r.y = r.y0 + (r.ty - r.y0) * e;
         c.strokeStyle = 'rgba(255,215,154,.9)'; c.lineWidth = 2; c.beginPath(); c.moveTo(px, py + 14); c.lineTo(r.x, r.y); c.stroke();
-        if (k >= 1) { explode(r.tx, r.ty); return false; } return true;
+        if (k >= 1) { if (!r.silent) explode(r.tx, r.ty); return false; } return true;
       });
       const f = dt / 16.7;
       parts = parts.filter(p => {
@@ -640,11 +643,56 @@ const VOYAGE = {
         c.fillStyle = p.color; c.beginPath(); c.arc(p.x, p.y, p.r, 0, 7); c.fill();
         return true;
       });
+      drawLetters(now, f);
       c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
-      if (parts.length || rockets.length) requestAnimationFrame(frame); else { running = false; c.clearRect(0, 0, W, H); }
+      if (parts.length || rockets.length || letters.length) requestAnimationFrame(frame); else { running = false; c.clearRect(0, 0, W, H); }
     };
     function start() { if (!running) { running = true; last = performance.now(); requestAnimationFrame(frame); } }
-    return { launch, show, unlockAudio: audio };
+
+    // Des feux d'artifice qui écrivent un texte dans le ciel
+    let letters = [];
+    const writeText = async (text) => {
+      if (reduce) return;
+      try { await document.fonts.load('900 200px "Big Shoulders Display"'); } catch {}
+      const tw = Math.min(W * .78, 620), th = Math.min(H * .32, tw * .62);
+      const oc = document.createElement('canvas'), ow = Math.round(tw), oh = Math.round(th);
+      oc.width = ow; oc.height = oh; const o = oc.getContext('2d');
+      let fs = oh; o.font = `900 ${fs}px "Big Shoulders Display", sans-serif`;
+      while (o.measureText(text).width > ow && fs > 20) { fs -= 4; o.font = `900 ${fs}px "Big Shoulders Display", sans-serif`; }
+      o.textAlign = 'center'; o.textBaseline = 'middle'; o.fillStyle = '#fff'; o.fillText(text, ow / 2, oh / 2 + fs * .04);
+      const data = o.getImageData(0, 0, ow, oh).data, step = Math.max(5, Math.round(tw / 85)), pts = [];
+      for (let y = 0; y < oh; y += step) for (let x = 0; x < ow; x += step) if (data[(y * ow + x) * 4 + 3] > 128) pts.push([x, y]);
+      const ox = (W - ow) / 2, oy = H * .36 - oh / 2, cx = W / 2, cy = H * .36;
+      // la fusée monte au centre, puis éclate en lettres
+      rockets.push({ x: cx, y: H + 10, tx: cx, ty: cy, t: 0, dur: 800, x0: cx, y0: H + 10, silent: true });
+      whoosh(); start();
+      setTimeout(() => {
+        boom();
+        const t0 = performance.now();
+        letters = pts.map(([x, y]) => {
+          const a = Math.random() * Math.PI * 2, d = 60 + Math.random() * 160;
+          return { sx: cx, sy: cy, bx: cx + Math.cos(a) * d, by: cy + Math.sin(a) * d, tx: ox + x, ty: oy + y, t0: t0 + Math.random() * 120,
+                   x: cx, y: cy, vy: 0, color: Math.random() < .2 ? '#FFFFFF' : COLORS[Math.floor(Math.random() * 3)], r: 1.6 + Math.random() * 1.2 };
+        });
+        start();
+        setTimeout(() => show(4, 300), 900); // quelques feux autour
+      }, 800);
+    };
+    const ease = (k) => k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    const drawLetters = (now, f) => {
+      letters = letters.filter(p => {
+        const t = now - p.t0; if (t < 0) return true;
+        let a = 1;
+        if (t < 350) { const k = 1 - Math.pow(1 - t / 350, 3); p.x = p.sx + (p.bx - p.sx) * k; p.y = p.sy + (p.by - p.sy) * k; }
+        else if (t < 1500) { const k = ease((t - 350) / 1150); p.x = p.bx + (p.tx - p.bx) * k; p.y = p.by + (p.ty - p.by) * k; }
+        else if (t < 4600) { p.x = p.tx; p.y = p.ty; a = .75 + Math.random() * .25; }
+        else { p.vy += .05 * f; p.y += p.vy * f; a = Math.max(0, 1 - (t - 4600) / 1300); if (a <= 0) return false; }
+        c.globalAlpha = a; c.fillStyle = p.color; c.beginPath(); c.arc(p.x, p.y, p.r, 0, 7); c.fill();
+        if (t > 1500 && t < 4600) { c.globalAlpha = a * .18; c.beginPath(); c.arc(p.x, p.y, p.r * 3.2, 0, 7); c.fill(); }
+        return true;
+      });
+    };
+    return { launch, show, writeText, unlockAudio: audio };
   })();
 
   /* ---- Étapes ---- */
@@ -1225,6 +1273,21 @@ const VOYAGE = {
     } catch {}
   }
 
+  /* ---- Page cachée après l'étape secrète : feux d'artifice qui écrivent « DD » ---- */
+  const DD_TEXT = 'DD';
+  const ddSlide = document.createElement('section');
+  ddSlide.className = 'slide slide-dd';
+  ddSlide.setAttribute('aria-label', 'Surprise');
+  ddSlide.innerHTML = `<h2 class="sr-only">${DD_TEXT}</h2><p class="dd-hint">Touche l’écran pour rejouer</p>`;
+  if (reduce) ddSlide.innerHTML = `<p class="dd-static">${DD_TEXT}</p>`;
+  ddSlide.addEventListener('click', (e) => { if (e.target.closest('button, a')) return; fw.unlockAudio(); fw.writeText(DD_TEXT); });
+  let dotsReady = false;
+  const revealDD = () => {
+    if (ddSlide.isConnected) return;
+    slides.append(ddSlide);
+    if (dotsReady) { count = slides.children.length; addDot(count - 1); onScroll(); }
+  };
+
   /* ---- Étape secrète ---- */
   const sec = VOYAGE.secret;
   if (sec) {
@@ -1256,7 +1319,7 @@ const VOYAGE = {
         </button>
         <p class="bio-msg" id="bioMsg" role="status">Pose ton doigt pour confirmer</p>
       </div>
-      <div class="secret-open" hidden><p class="step-when"></p><p class="step-what"></p></div>`;
+      <div class="secret-open" hidden><p class="step-when"></p><p class="step-what"></p><p class="fw-hint">Glisse encore, il reste une surprise</p></div>`;
     slides.append(s);
     const pin = s.querySelector('.pin'), err = s.querySelector('#codeError');
     const hash = async (txt) => {
@@ -1275,6 +1338,7 @@ const VOYAGE = {
       if (sec.img) { const im = new Image(); im.alt = sec.what; im.src = sec.img; s.querySelector('.art').append(im); }
       if (!instant) s.classList.add('revealed');
       try { localStorage.setItem('amsterdam-secret', sec.codeHash); } catch {}
+      revealDD();
     };
     const renderPin = () => {
       [...pin.children].forEach((d, i) => d.classList.toggle('on', i < entry.length));
@@ -1302,7 +1366,7 @@ const VOYAGE = {
     });
     // Sur ordi : on peut aussi taper le code au clavier
     addEventListener('keydown', (e) => {
-      if (!locked || !body.classList.contains('playing-screen') || index !== count - 1) return;
+      if (!locked || !body.classList.contains('playing-screen') || slides.children[index] !== s) return;
       if (/^[0-9]$/.test(e.key)) press(e.key);
       else if (e.key === 'Backspace') press('del');
     });
@@ -1357,14 +1421,16 @@ const VOYAGE = {
     try { if (localStorage.getItem('amsterdam-secret') === sec.codeHash) unlock(true); } catch {}
   }
 
-  const count = slides.children.length;
-  for (let i = 0; i < count; i++) {
+  let count = slides.children.length;
+  function addDot(i) {
     const d = document.createElement('button');
     d.className = 'dot'; d.type = 'button';
     d.setAttribute('aria-label', i === 0 ? 'Le son' : `Étape ${i}`);
     d.addEventListener('click', () => goTo(i));
     dots.append(d);
   }
+  for (let i = 0; i < count; i++) addDot(i);
+  dotsReady = true;
   let index = 0;
   const goTo = (i, smooth = !reduce) => {
     i = Math.max(0, Math.min(count - 1, i));
@@ -1399,6 +1465,7 @@ const VOYAGE = {
     if (i !== index || !dots.children[i].hasAttribute('aria-current')) {
       index = i;
       if (slides.children[i] === fwSlide && !fwSlide.dataset.shown) { fwSlide.dataset.shown = '1'; fw.unlockAudio(); fw.show(3, 500); }
+      if (slides.children[i] === ddSlide) { fw.unlockAudio(); fw.writeText(DD_TEXT); }
       [...dots.children].forEach((d, k) => d.setAttribute('aria-current', String(k === i)));
       $('prev').disabled = i === 0; $('next').disabled = i === count - 1;
     }
