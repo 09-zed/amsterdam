@@ -184,7 +184,7 @@
   /* Roue du destin */
   .slide-wheel { gap: clamp(12px, 2.4dvh, 24px); }
   .wheel-intro { font-weight: 500; font-size: 19px; color: var(--muted); text-wrap: balance; margin-top: 6px; }
-  .wheel-wrap { position: relative; width: min(80vw, 42dvh, 400px); aspect-ratio: 1; }
+  .wheel-wrap { --w: min(80vw, 42dvh, 400px); position: relative; width: var(--w); aspect-ratio: 1; }
   .wheel { width: 100%; height: 100%; display: block; filter: drop-shadow(0 24px 40px rgba(0,0,0,.55)) drop-shadow(0 0 40px rgba(240,164,58,.2)); }
   .wheel .rim { fill: #0B1220; stroke: var(--amber); stroke-width: 2; }
   .wheel text { font-family: "Big Shoulders Display", sans-serif; font-weight: 800; font-size: 11px; letter-spacing: .03em; text-transform: uppercase; }
@@ -199,7 +199,7 @@
   .wheel-hub {
     position: absolute; left: 50%; top: 50%; width: 27%; aspect-ratio: 1; transform: translate(-50%, -50%);
     border-radius: 50%; border: 0; cursor: pointer; touch-action: manipulation;
-    font: inherit; font-weight: 900; font-size: clamp(16px, 2.6dvh, 22px); text-transform: uppercase; letter-spacing: .02em;
+    font: inherit; font-weight: 900; font-size: calc(var(--w) * .055); text-transform: uppercase; letter-spacing: .01em;
     color: #1A1206; background: radial-gradient(circle at 50% 35%, #F6B556, var(--amber) 60%, #C9801F);
     box-shadow: 0 0 0 4px #0B1220, 0 0 0 6px var(--amber), 0 8px 24px rgba(0,0,0,.5);
     transition: transform 160ms var(--ease-out), opacity 200ms ease;
@@ -211,7 +211,12 @@
   .has-result .wheel-result { opacity: 1; transform: none; }
   .wr-main { font-weight: 900; font-size: clamp(26px, 4.2dvh, 36px); line-height: 1.05; color: var(--amber); text-wrap: balance; text-shadow: 0 0 24px rgba(240,164,58,.3); }
   .wr-sub { font-weight: 500; font-size: 18px; color: var(--muted); margin-top: 6px; }
-  @media (max-height: 620px) { .wheel-intro { display: none; } .wheel-wrap { width: min(74vw, 40dvh); } }
+  .wr-pass { font-size: 19px; min-height: 48px; min-width: 0; padding: 0 20px; margin-top: 12px; }
+  .wr-pass[disabled] { opacity: .6; }
+  .wheel-result:not(:has(.wr-status:empty)) .wr-status { margin-top: 6px; }
+  .slide-wheel:not(.has-result) .wr-pass { visibility: hidden; }
+  @media (max-height: 760px) { .wheel-intro { display: none; } .wr-sub { margin-top: 2px; } .wr-pass { margin-top: 8px; } }
+  @media (max-height: 620px) { .wheel-wrap { --w: min(70vw, 36dvh); } .wr-main { font-size: 22px; } .wr-pass { font-size: 17px; min-height: 44px; } }
   @media (prefers-reduced-motion: reduce) { .wheel-pointer.tick { animation: none; } }
 
   /* Billet */
@@ -585,6 +590,48 @@ const VOYAGE = {
     }
     slides.append(s);
   });
+  /* ---- Outils partagés : dessin sur canvas et enregistrement d'image dans la pellicule ---- */
+  const rr = (c, x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
+  const fitFont = (c, txt, weight, size, maxW) => { let sz = size; do { c.font = `${weight} ${sz}px "Big Shoulders Display", sans-serif`; sz -= 2; } while (c.measureText(txt).width > maxW && sz > 20); return sz + 2; };
+  const wrap = (c, txt, maxW) => {
+    const words = txt.split(/\s+/), lines = []; let line = '';
+    for (const w of words) { const test = line ? line + ' ' + w : w; if (c.measureText(test).width > maxW && line) { lines.push(line); line = w; } else line = test; }
+    if (line) lines.push(line); return lines;
+  };
+  const overlay = document.createElement('div');
+  overlay.className = 'save-overlay'; overlay.hidden = true;
+  overlay.innerHTML = `<div class="save-sheet" role="dialog" aria-modal="true" aria-label="Enregistrer l’image">
+      <img alt="">
+      <p>Appuie longuement sur l’image, puis «&nbsp;Ajouter à Photos&nbsp;».</p>
+      <button class="btn btn-ghost" type="button">Fermer</button></div>`;
+  document.body.append(overlay);
+  const closeOverlay = () => { overlay.hidden = true; const im = overlay.querySelector('img'); if (im.src) URL.revokeObjectURL(im.src); im.removeAttribute('src'); };
+  overlay.querySelector('button').addEventListener('click', closeOverlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(); });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.hidden) closeOverlay(); });
+  const showOverlay = (blob) => { overlay.querySelector('img').src = URL.createObjectURL(blob); overlay.hidden = false; overlay.querySelector('button').focus(); };
+
+  const dlCap = window.claude?.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
+  const touch = matchMedia('(pointer: coarse)').matches;
+  // Renvoie 'shared' | 'shown' | 'saved' | 'downloaded' | 'cancelled'
+  const saveImage = async (blob, filename) => {
+    const file = new File([blob], filename, { type: 'image/png' });
+    if (navigator.canShare?.({ files: [file] })) { // iPhone / Android : feuille de partage -> « Enregistrer l'image »
+      try { await navigator.share({ files: [file] }); return 'shared'; }
+      catch (err) { if (err?.name === 'AbortError') return 'cancelled'; }
+    }
+    if (touch) { showOverlay(blob); return 'shown'; } // téléphone sans partage : image en grand, appui long
+    const dl = await dlCap; // ordi
+    if (dl) {
+      try { await dl.save({ filename, data: blob }); return 'saved'; }
+      catch (err) { if (err?.code === 'declined') return 'cancelled'; }
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    return 'downloaded';
+  };
+  const slug = (txt) => txt.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'moi';
+
   /* ---- La roue du destin (truquée : elle tombe toujours sur le coffre) ---- */
   {
     const SEGS = [
@@ -625,12 +672,94 @@ const VOYAGE = {
         </svg>
         <button class="wheel-hub" type="button">Tourner</button>
       </div>
-      <div class="wheel-result" aria-live="polite"><p class="wr-main"></p><p class="wr-sub"></p></div>`;
+      <div class="wheel-result" aria-live="polite"><p class="wr-main"></p><p class="wr-sub"></p>
+        <button class="btn btn-yes wr-pass" type="button" tabindex="-1">Récupérer mon pass coffre</button>
+        <p class="t-status wr-status" role="status"></p></div>`;
     slides.append(w);
 
     const rot = w.querySelector('.wheel-rot'), hub = w.querySelector('.wheel-hub'), pointer = w.querySelector('.wheel-pointer'),
           rMain = w.querySelector('.wr-main'), rSub = w.querySelector('.wr-sub');
     let R = 0, spinning = false, spins = 0, lastSeg = -1;
+    const passBtn = w.querySelector('.wr-pass'), passStatus = w.querySelector('.wr-status');
+
+    /* ---- Pass coffre : certificat officiel au format story ---- */
+    const drawPass = async () => {
+      let who = null;
+      try { who = JSON.parse(localStorage.getItem('amsterdam-ticket') || 'null'); if (Array.isArray(who)) who = { fn: who[0], ln: who[1] }; } catch {}
+      const name = who ? `${who.fn} ${who.ln}`.trim() : 'Passager mystère';
+      try { await Promise.all(['900 100px', '800 40px', '500 30px'].map(x => document.fonts.load(`${x} "Big Shoulders Display"`))); } catch {}
+      let photoImg = null;
+      if (who?.photo) { try { photoImg = new Image(); photoImg.src = who.photo; await photoImg.decode(); } catch { photoImg = null; } }
+      const W = 1080, H = 1920, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      const c = cv.getContext('2d'), F = (wt, sz) => `${wt} ${sz}px "Big Shoulders Display", sans-serif`;
+      const ink = '#0B1220', rust = '#9A5310', amber = '#F0A43A';
+      // fond de nuit
+      let g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0B1220'); g.addColorStop(.5, '#0B1220'); g.addColorStop(1, '#18223A');
+      c.fillStyle = g; c.fillRect(0, 0, W, H);
+      g = c.createRadialGradient(W / 2, H * 1.08, 0, W / 2, H * 1.08, H * .62); g.addColorStop(0, 'rgba(240,164,58,.45)'); g.addColorStop(1, 'rgba(240,164,58,0)');
+      c.fillStyle = g; c.fillRect(0, 0, W, H);
+      for (let i = 0; i < 160; i++) { const y = Math.pow(Math.random(), 1.6) * H * .85; c.globalAlpha = (.3 + Math.random() * .6) * (1 - y / H); c.fillStyle = Math.random() < .6 ? '#FFC874' : '#F4E9D6'; c.beginPath(); c.arc(Math.random() * W, y, 1 + Math.random() * 1.8, 0, 7); c.fill(); }
+      c.globalAlpha = 1;
+      // carte
+      const X = 90, Y = 190, CW = 900, CH = 1540;
+      c.save(); c.shadowColor = 'rgba(0,0,0,.6)'; c.shadowBlur = 80; c.shadowOffsetY = 40;
+      const pg = c.createRadialGradient(X + CW, Y, 0, X + CW, Y, CW * 1.2); pg.addColorStop(0, '#F1D2A0'); pg.addColorStop(.6, '#F4E9D6');
+      c.fillStyle = pg; rr(c, X, Y, CW, CH, 36); c.fill(); c.restore();
+      c.strokeStyle = amber; c.lineWidth = 6; rr(c, X + 26, Y + 26, CW - 52, CH - 52, 22); c.stroke();
+      c.strokeStyle = 'rgba(154,83,16,.6)'; c.lineWidth = 2; rr(c, X + 42, Y + 42, CW - 84, CH - 84, 14); c.stroke();
+      const cx = W / 2; c.textAlign = 'center';
+      let y = Y + 150;
+      c.font = F(800, 34); c.fillStyle = rust; c.fillText('CERTIFICAT OFFICIEL', cx, y);
+      y += 120; c.fillStyle = ink; fitFont(c, 'PASS', 900, 120, 700); c.fillText('PASS', cx, y);
+      y += 235; fitFont(c, 'COFFRE', 900, 240, 740); c.fillText('COFFRE', cx, y);
+      // ornement
+      y += 50; c.fillStyle = amber;
+      for (let k = -2; k <= 2; k++) { c.save(); c.translate(cx + k * 40, y); c.rotate(Math.PI / 4); c.fillRect(-7, -7, 14, 14); c.restore(); }
+      y += 50;
+      if (photoImg) {
+        const r = 100; y += r;
+        c.save(); c.beginPath(); c.arc(cx, y, r, 0, 7); c.clip(); c.drawImage(photoImg, cx - r, y - r, r * 2, r * 2); c.restore();
+        c.strokeStyle = amber; c.lineWidth = 8; c.beginPath(); c.arc(cx, y, r + 4, 0, 7); c.stroke();
+        y += r + 40;
+      }
+      y += 40; c.font = F(500, 42); c.fillStyle = 'rgba(11,18,32,.75)'; c.fillText('Le destin certifie que', cx, y);
+      c.font = F(900, 86); c.fillStyle = ink;
+      for (const ln of wrap(c, name.toUpperCase(), 740).slice(0, 2)) { y += 92; c.fillText(ln, cx, y); }
+      const dep = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', timeZone: 'Europe/Paris' }).format(new Date(VOYAGE.depart));
+      c.font = F(500, 42); c.fillStyle = 'rgba(11,18,32,.75)';
+      y += 70; c.fillText('voyagera dans le coffre à l’aller,', cx, y);
+      y += 52; c.fillText(`direction Amsterdam, le ${dep}.`, cx, y);
+      // signature
+      const sy = Y + CH - 200, sx = X + 110;
+      c.strokeStyle = ink; c.lineWidth = 4; c.lineCap = 'round'; c.beginPath();
+      c.moveTo(sx, sy); c.bezierCurveTo(sx + 30, sy - 70, sx + 60, sy + 30, sx + 90, sy - 30);
+      c.bezierCurveTo(sx + 110, sy - 70, sx + 130, sy + 20, sx + 170, sy - 20); c.bezierCurveTo(sx + 200, sy - 50, sx + 230, sy + 10, sx + 270, sy - 10); c.stroke();
+      c.strokeStyle = 'rgba(11,18,32,.35)'; c.lineWidth = 2; c.beginPath(); c.moveTo(sx, sy + 30); c.lineTo(sx + 290, sy + 30); c.stroke();
+      c.textAlign = 'left'; c.font = F(800, 28); c.fillStyle = rust; c.fillText('SIGNÉ : LE DESTIN', sx, sy + 72);
+      // tampon
+      c.save(); c.translate(X + CW - 230, Y + CH - 225); c.rotate(-0.24); c.globalAlpha = .88;
+      c.strokeStyle = '#A8441C'; c.fillStyle = '#A8441C';
+      c.lineWidth = 7; c.beginPath(); c.arc(0, 0, 128, 0, 7); c.stroke();
+      c.lineWidth = 3; c.beginPath(); c.arc(0, 0, 108, 0, 7); c.stroke();
+      c.textAlign = 'center'; c.font = F(900, 50); c.fillText('APPROUVÉ', 0, 14);
+      c.font = F(800, 26); c.fillText('PAR LE DESTIN', 0, 56);
+      c.font = F(800, 26); c.fillText('★ ★ ★', 0, -50);
+      c.restore();
+      // pied
+      c.textAlign = 'center'; c.font = F(500, 30); c.fillStyle = 'rgba(11,18,32,.6)';
+      const no = 'N° COFFRE-' + String(Math.floor(Math.random() * 9000) + 1000);
+      c.fillText(`${no}. Aller simple, non remboursable. Coussin non fourni.`, cx, Y + CH - 62);
+      return { blob: await new Promise(res => cv.toBlob(res, 'image/png')), name };
+    };
+    passBtn.addEventListener('click', async () => {
+      passBtn.disabled = true; passStatus.textContent = 'Impression du pass…';
+      try {
+        const { blob, name } = await drawPass();
+        const res = await saveImage(blob, `pass-coffre-${slug(name)}.png`);
+        passStatus.textContent = res === 'saved' ? 'Pass enregistré.' : res === 'downloaded' ? 'Pass téléchargé.' : '';
+      } catch { passStatus.textContent = 'Impossible de créer le pass. Fais une capture d’écran.'; }
+      finally { passBtn.disabled = false; }
+    });
 
     /* Sons de la roue (générés, pas de fichier) : « tac » à chaque case, trompette triste à la fin */
     let actx = null;
@@ -694,7 +823,7 @@ const VOYAGE = {
         sadTrombone();
         rMain.textContent = SEGS[RIGGED][1];
         rSub.textContent = SUBS[Math.min(spins, SUBS.length) - 1];
-        w.classList.add('has-result');
+        w.classList.add('has-result'); passBtn.tabIndex = 0;
       };
       requestAnimationFrame(frame);
     });
@@ -913,13 +1042,6 @@ const VOYAGE = {
     addEventListener('keydown', (e) => { if (e.key === 'Escape' && !cam.hidden) closeCam(); });
     photoBtn.addEventListener('click', openCam);
     /* ---- Image du billet (format story 1080×1920) et enregistrement ---- */
-    const rr = (c, x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
-    const fitFont = (c, txt, weight, size, maxW) => { let sz = size; do { c.font = `${weight} ${sz}px "Big Shoulders Display", sans-serif`; sz -= 2; } while (c.measureText(txt).width > maxW && sz > 20); return sz + 2; };
-    const wrap = (c, txt, maxW) => {
-      const words = txt.split(/\s+/), lines = []; let line = '';
-      for (const w of words) { const test = line ? line + ' ' + w : w; if (c.measureText(test).width > maxW && line) { lines.push(line); line = w; } else line = test; }
-      if (line) lines.push(line); return lines;
-    };
     const drawTicket = async () => {
       const d = current; if (!d) return null;
       try { await Promise.all(['900 100px', '800 40px', '500 30px'].map(w => document.fonts.load(`${w} "Big Shoulders Display"`))); } catch {}
@@ -999,45 +1121,14 @@ const VOYAGE = {
     };
 
     const status = t.querySelector('.t-status');
-    const overlay = document.createElement('div');
-    overlay.className = 'save-overlay'; overlay.hidden = true;
-    overlay.innerHTML = `<div class="save-sheet" role="dialog" aria-modal="true" aria-label="Enregistrer le billet">
-        <img alt="Ton billet pour Amsterdam">
-        <p>Appuie longuement sur l’image, puis «&nbsp;Ajouter à Photos&nbsp;».</p>
-        <button class="btn btn-ghost" type="button">Fermer</button></div>`;
-    document.body.append(overlay);
-    const closeOverlay = () => { overlay.hidden = true; const im = overlay.querySelector('img'); if (im.src) URL.revokeObjectURL(im.src); im.removeAttribute('src'); };
-    overlay.querySelector('button').addEventListener('click', closeOverlay);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(); });
-    addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.hidden) closeOverlay(); });
-    const showOverlay = (blob) => { overlay.querySelector('img').src = URL.createObjectURL(blob); overlay.hidden = false; overlay.querySelector('button').focus(); };
-
-    const dlCap = window.claude?.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
-    const touch = matchMedia('(pointer: coarse)').matches;
     const saveBtn = t.querySelector('.t-save');
     saveBtn.addEventListener('click', async () => {
       if (!current) return;
       status.textContent = 'Préparation de l’image…'; saveBtn.disabled = true;
       try {
         const blob = await drawTicket();
-        const filename = `billet-amsterdam-${current.first.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'moi'}.png`;
-        const file = new File([blob], filename, { type: 'image/png' });
-        // 1. iPhone / Android : feuille de partage -> « Enregistrer l'image »
-        if (navigator.canShare?.({ files: [file] })) {
-          try { await navigator.share({ files: [file] }); status.textContent = ''; return; }
-          catch (err) { if (err?.name === 'AbortError') { status.textContent = ''; return; } }
-        }
-        // 2. téléphone sans partage possible ici : image en grand, appui long
-        if (touch) { status.textContent = ''; showOverlay(blob); return; }
-        // 3. ordi : téléchargement
-        const dl = await dlCap;
-        if (dl) {
-          try { await dl.save({ filename, data: blob }); status.textContent = 'Billet enregistré.'; return; }
-          catch (err) { if (err?.code === 'declined') { status.textContent = ''; return; } }
-        }
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
-        document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-        status.textContent = 'Billet téléchargé.';
+        const res = await saveImage(blob, `billet-amsterdam-${slug(current.first)}.png`);
+        status.textContent = res === 'saved' ? 'Billet enregistré.' : res === 'downloaded' ? 'Billet téléchargé.' : '';
       } catch {
         status.textContent = 'Impossible de créer l’image. Fais une capture d’écran du billet.';
       } finally { saveBtn.disabled = false; }
