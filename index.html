@@ -271,6 +271,63 @@
     .ticket-out { gap: 2px; }
   }
 
+  /* Photo de passager */
+  .photo-row { display: flex; align-items: center; gap: 14px; margin-top: 2px; }
+  .avatar {
+    flex: 0 0 auto; width: 64px; height: 64px; border-radius: 16px; overflow: hidden; position: relative;
+    display: grid; place-items: center; color: var(--muted);
+    background: rgba(244,233,214,.07); border: 1.5px dashed rgba(244,233,214,.35);
+  }
+  .avatar svg { width: 34px; height: 34px; }
+  .avatar.has { border-style: solid; border-color: var(--amber); }
+  .avatar.has svg { display: none; }
+  .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .photo-txt { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+  .photo-title { font-weight: 800; font-size: 16px; letter-spacing: .04em; text-transform: uppercase; }
+  .photo-btn { font-size: 18px; min-height: 44px; padding: 0 18px; white-space: nowrap; }
+  .t-pax { display: flex; align-items: center; gap: 12px; }
+  .t-pax > div { min-width: 0; }
+  .t-photo { flex: 0 0 auto; width: 64px; height: 64px; border-radius: 10px; object-fit: cover; box-shadow: 0 0 0 1.5px rgba(11,18,32,.25); }
+
+  .cam-overlay { position: fixed; inset: 0; z-index: 30; background: rgba(5,8,15,.97); display: grid; place-items: center; padding: 16px; }
+  .cam-sheet { display: flex; flex-direction: column; align-items: center; gap: clamp(10px, 2dvh, 18px); text-align: center; width: min(100%, 420px); }
+  .viewfinder {
+    position: relative; width: min(76vw, 44dvh, 340px); aspect-ratio: 1; border-radius: 50%; overflow: hidden;
+    background: #121A2C; box-shadow: 0 0 0 3px var(--amber), 0 0 50px rgba(240,164,58,.35);
+  }
+  .viewfinder video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); filter: url(#duo); }
+  .no-cam .viewfinder video { display: none; }
+  .cam-count { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 900; font-size: 120px; color: var(--paper); text-shadow: 0 4px 30px rgba(0,0,0,.6); pointer-events: none; }
+  .cam-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  .cam-flash.go { animation: flash 450ms ease-out; }
+  @keyframes flash { 0% { opacity: .95; } 100% { opacity: 0; } }
+  .cam-msg { min-height: 24px; font-weight: 500; font-size: 18px; color: var(--muted); text-wrap: balance; }
+  .shutter {
+    width: 76px; height: 76px; border-radius: 50%; cursor: pointer; touch-action: manipulation;
+    background: var(--paper); border: 0; box-shadow: 0 0 0 4px var(--night), 0 0 0 7px var(--amber);
+    transition: transform 160ms var(--ease-out), opacity 200ms ease;
+  }
+  .shutter:active { transform: scale(.94); }
+  .shutter:disabled { opacity: .35; cursor: default; }
+  .shutter:focus-visible { outline: 3px solid var(--paper); outline-offset: 10px; }
+  .no-cam .shutter { display: none; }
+  .no-cam .cam-gallery { color: var(--amber); font-weight: 800; }
+  .cam-links { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  @media (prefers-reduced-motion: reduce) { .cam-flash.go { animation-duration: 1ms; } }
+  @media (max-height: 760px) {
+    .ticket-intro { display: none; }
+    .avatar { width: 54px; height: 54px; }
+    .photo-title { font-size: 14px; }
+    .t-photo { width: 52px; height: 52px; }
+  }
+  @media (max-height: 620px) {
+    .ticket-form { gap: 8px; }
+    .field input { min-height: 44px; font-size: 18px; }
+    .photo-title { display: none; }
+    .photo-btn { font-size: 16px; padding: 0 14px; }
+    .t-photo { width: 40px; height: 40px; border-radius: 8px; }
+  }
+
   /* Étape secrète */
   [hidden] { display: none !important; }
   .slide-secret.is-locked .art { display: none; }
@@ -471,7 +528,7 @@ const VOYAGE = {
   document.addEventListener('click', (e) => {
     if (!body.classList.contains('playing-screen')) return;
     if (e.target === vinyl) { toggle(); return; } // clavier
-    if (e.target.closest('button, a, .save-overlay')) return;
+    if (e.target.closest('button, a, .save-overlay, .cam-overlay')) return;
     const r = deck.getBoundingClientRect();
     const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
     if (Math.hypot(dx, dy) <= r.width / 2) toggle();
@@ -512,6 +569,13 @@ const VOYAGE = {
           <label for="tLast">Nom</label>
           <input id="tLast" name="family-name" type="text" autocomplete="family-name" autocapitalize="words" spellcheck="false" maxlength="24" placeholder="Ton nom">
         </div>
+        <div class="photo-row">
+          <span class="avatar" id="tAvatar" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="9" r="4"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg></span>
+          <div class="photo-txt">
+            <p class="photo-title">Photo de passager</p>
+            <button class="btn btn-ghost photo-btn" id="tPhotoBtn" type="button">Prendre ma photo</button>
+          </div>
+        </div>
         <p class="code-error" id="tErr" role="alert"></p>
         <button class="btn btn-yes" type="submit">Imprimer mon billet</button>
       </form>
@@ -522,8 +586,10 @@ const VOYAGE = {
               <div class="t-head"><span>Billet aller-retour</span><span class="t-no" data-f="no"></span></div>
               <p class="t-label">Destination</p>
               <p class="t-dest">Amsterdam</p>
-              <p class="t-label">Passager</p>
-              <p class="t-name" data-f="name"></p>
+              <div class="t-pax">
+                <img class="t-photo" data-f="photo" alt="" hidden>
+                <div><p class="t-label">Passager</p><p class="t-name" data-f="name"></p></div>
+              </div>
               <dl class="t-grid">
                 <div><dt>Départ</dt><dd data-f="dep"></dd></div>
                 <div><dt>Retour</dt><dd data-f="ret"></dd></div>
@@ -552,7 +618,7 @@ const VOYAGE = {
     const fmt = (d) => new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Paris' }).format(d);
     const SEATS = ['Arrière gauche', 'Arrière droite', 'Avant droite', 'Arrière milieu'];
 
-    let current = null;
+    let current = null, photo = null; // photo = image du passager (data URL), gardée sur le téléphone
     const makeBars = (h) => {
       const out = []; let x = 0, r = h || 1;
       while (x < 100) { r = Math.imul(r ^ (r >>> 15), 2246822507) >>> 0; const w = 0.6 + (r % 4) * 0.55; if ((r >>> 8) % 3) out.push([x, w]); x += w + 0.7 + ((r >>> 4) % 3) * 0.45; }
@@ -571,8 +637,10 @@ const VOYAGE = {
       // code-barres décoratif, propre à chaque nom
       const barList = makeBars(h);
       f('bars').innerHTML = barList.map(([x, w]) => `<rect x="${x.toFixed(2)}" width="${w.toFixed(2)}" height="24"/>`).join('');
+      const ph = f('photo');
+      if (photo) { ph.src = photo; ph.hidden = false; } else { ph.hidden = true; ph.removeAttribute('src'); }
       current = { name: (fn + ' ' + ln).trim(), first: fn, no: f('no').textContent, dep: f('dep').textContent, ret: f('ret').textContent,
-                  time: f('time').textContent, seat: f('seat').textContent, bars: barList, seed: h };
+                  time: f('time').textContent, seat: f('seat').textContent, bars: barList, seed: h, photo };
       form.hidden = true; out.hidden = false;
       ticket.classList.remove('printing');
       if (animate) { void ticket.offsetWidth; ticket.classList.add('printing'); }
@@ -586,9 +654,116 @@ const VOYAGE = {
       tErr.textContent = '';
       document.activeElement.blur();
       render(fn, ln, !reduce);
-      try { localStorage.setItem('amsterdam-ticket', JSON.stringify([fn, ln])); } catch {}
+      try { localStorage.setItem('amsterdam-ticket', JSON.stringify({ fn, ln, photo })); } catch {
+        try { localStorage.setItem('amsterdam-ticket', JSON.stringify({ fn, ln })); } catch {}
+      }
     });
 
+
+    /* ---- Photo de passager : caméra frontale + filtre « illustration » (bleu nuit -> doré -> crème) ---- */
+    const DUO = [[11, 18, 32], [184, 103, 26], [244, 233, 214]];
+    const duotone = (src, sw, sh, mirror) => {
+      const N = 480, cv = document.createElement('canvas'); cv.width = cv.height = N;
+      const c = cv.getContext('2d');
+      const side = Math.min(sw, sh), sx = (sw - side) / 2, sy = (sh - side) * 0.35;
+      if (mirror) { c.translate(N, 0); c.scale(-1, 1); }
+      c.drawImage(src, sx, sy, side, side, 0, 0, N, N);
+      const img = c.getImageData(0, 0, N, N), px = img.data;
+      for (let i = 0; i < px.length; i += 4) {
+        let l = (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]) / 255;
+        l = Math.min(1, Math.max(0, (l - 0.5) * 1.25 + 0.52));
+        const [a, b, k] = l < .55 ? [DUO[0], DUO[1], l / .55] : [DUO[1], DUO[2], (l - .55) / .45];
+        const n = (Math.random() - .5) * 10; // léger grain
+        px[i] = a[0] + (b[0] - a[0]) * k + n; px[i + 1] = a[1] + (b[1] - a[1]) * k + n; px[i + 2] = a[2] + (b[2] - a[2]) * k + n;
+      }
+      c.putImageData(img, 0, 0);
+      return cv.toDataURL('image/jpeg', 0.85);
+    };
+    const avatar = t.querySelector('#tAvatar'), photoBtn = t.querySelector('#tPhotoBtn');
+    const setPhoto = (dataUrl) => {
+      photo = dataUrl;
+      const old = avatar.querySelector('img'); if (old) old.remove();
+      if (photo) { const im = new Image(); im.alt = ''; im.src = photo; avatar.append(im); avatar.classList.add('has'); photoBtn.textContent = 'Reprendre ma photo'; }
+      else { avatar.classList.remove('has'); photoBtn.textContent = 'Prendre ma photo'; }
+    };
+
+    const cam = document.createElement('div');
+    cam.className = 'cam-overlay'; cam.hidden = true;
+    cam.innerHTML = `
+      <div class="cam-sheet" role="dialog" aria-modal="true" aria-labelledby="camTitle">
+        <p class="step-when" id="camTitle">Ta photo de passager</p>
+        <div class="viewfinder">
+          <video playsinline muted autoplay></video>
+          <span class="cam-count" aria-live="assertive"></span>
+          <span class="cam-flash"></span>
+        </div>
+        <p class="cam-msg" role="status">Place ton visage dans le rond</p>
+        <button class="shutter" type="button" aria-label="Prendre la photo"></button>
+        <div class="cam-links">
+          <button class="t-edit cam-gallery" type="button">Choisir dans la galerie</button>
+          <button class="t-edit cam-cancel" type="button">Annuler</button>
+        </div>
+        <input class="cam-file" type="file" accept="image/*" hidden>
+      </div>
+      <svg width="0" height="0" aria-hidden="true" style="position:absolute"><filter id="duo" color-interpolation-filters="sRGB">
+        <feColorMatrix type="matrix" values=".299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 0 0 0 1 0"/>
+        <feComponentTransfer><feFuncR type="linear" slope="1.25" intercept="-.105"/><feFuncG type="linear" slope="1.25" intercept="-.105"/><feFuncB type="linear" slope="1.25" intercept="-.105"/></feComponentTransfer>
+        <feComponentTransfer><feFuncR type="table" tableValues=".043 .722 .957"/><feFuncG type="table" tableValues=".071 .404 .914"/><feFuncB type="table" tableValues=".125 .102 .839"/></feComponentTransfer>
+      </filter></svg>`;
+    document.body.append(cam);
+    const video = cam.querySelector('video'), camMsg = cam.querySelector('.cam-msg'), shutter = cam.querySelector('.shutter'),
+          count = cam.querySelector('.cam-count'), flash = cam.querySelector('.cam-flash'), fileIn = cam.querySelector('.cam-file');
+    let stream = null, wasPlaying = false, shooting = false;
+    const stopStream = () => { stream?.getTracks().forEach(tr => tr.stop()); stream = null; video.srcObject = null; };
+    const closeCam = () => {
+      stopStream(); cam.hidden = true; shooting = false; count.textContent = '';
+      if (wasPlaying && audio.paused) play(); // iOS peut couper le son pendant la caméra
+      photoBtn.focus({ preventScroll: true });
+    };
+    const openCam = async () => {
+      wasPlaying = playing;
+      cam.hidden = false; cam.classList.remove('no-cam'); shutter.disabled = true;
+      camMsg.textContent = 'Ouverture de la caméra…';
+      cam.querySelector('.cam-cancel').focus({ preventScroll: true });
+      if (!navigator.mediaDevices?.getUserMedia) { noCam('Pas de caméra disponible ici. Choisis une photo dans ta galerie.'); return; }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 1280 } }, audio: false });
+        if (cam.hidden) { stopStream(); return; }
+        video.srcObject = stream; await video.play().catch(() => {});
+        shutter.disabled = false; camMsg.textContent = 'Place ton visage dans le rond';
+        if (wasPlaying && audio.paused) play();
+      } catch (err) {
+        noCam(err?.name === 'NotAllowedError'
+          ? 'Accès à la caméra refusé. Tu peux choisir une photo dans ta galerie.'
+          : 'La caméra ne s’ouvre pas ici. Choisis une photo dans ta galerie.');
+      }
+    };
+    const noCam = (msg) => { cam.classList.add('no-cam'); shutter.disabled = true; camMsg.textContent = msg; };
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    shutter.addEventListener('click', async () => {
+      if (shooting || !stream) return;
+      shooting = true; shutter.disabled = true;
+      for (const n of ['3', '2', '1']) { count.textContent = n; await sleep(700); if (cam.hidden) return; }
+      count.textContent = '';
+      flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
+      const data = duotone(video, video.videoWidth, video.videoHeight, true);
+      setPhoto(data);
+      await sleep(350);
+      closeCam();
+    });
+    cam.querySelector('.cam-cancel').addEventListener('click', closeCam);
+    cam.querySelector('.cam-gallery').addEventListener('click', () => fileIn.click());
+    fileIn.addEventListener('change', async () => {
+      const file = fileIn.files?.[0]; fileIn.value = '';
+      if (!file) return;
+      try {
+        const url = URL.createObjectURL(file), im = new Image(); im.src = url; await im.decode();
+        setPhoto(duotone(im, im.naturalWidth, im.naturalHeight, false)); URL.revokeObjectURL(url);
+        closeCam();
+      } catch { camMsg.textContent = 'Cette image ne s’ouvre pas. Essaie une autre photo.'; }
+    });
+    addEventListener('keydown', (e) => { if (e.key === 'Escape' && !cam.hidden) closeCam(); });
+    photoBtn.addEventListener('click', openCam);
     /* ---- Image du billet (format story 1080×1920) et enregistrement ---- */
     const rr = (c, x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
     const fitFont = (c, txt, weight, size, maxW) => { let sz = size; do { c.font = `${weight} ${sz}px "Big Shoulders Display", sans-serif`; sz -= 2; } while (c.measureText(txt).width > maxW && sz > 20); return sz + 2; };
@@ -620,8 +795,13 @@ const VOYAGE = {
       const TW = 860, PX = 60, inner = TW - PX * 2, STUB = 270;
       const t2 = document.createElement('canvas'); t2.width = TW; const tc = t2.getContext('2d');
       const nameSize = 70; tc.font = `900 ${nameSize}px "Big Shoulders Display", sans-serif`;
-      const nameLines = wrap(tc, d.name.toUpperCase(), inner).slice(0, 3);
-      const mainH = 60 + 40 + 54 + 150 + 40 + 44 + nameLines.length * nameSize * 1.02 + 50 + 2 * 112 + 30;
+      let photoImg = null;
+      if (d.photo) { try { photoImg = new Image(); photoImg.src = d.photo; await photoImg.decode(); } catch { photoImg = null; } }
+      const P = 210, nameX = photoImg ? PX + P + 34 : PX;
+      const nameLines = wrap(tc, d.name.toUpperCase(), inner - (nameX - PX)).slice(0, 3);
+      const linesH = nameLines.length * nameSize * 1.02;
+      const passengerH = photoImg ? 30 + Math.max(P, 44 + linesH) + 14 : 84 + linesH;
+      const mainH = 60 + 40 + 54 + 150 + passengerH + 50 + 2 * 112 + 30;
       const TH = Math.round(mainH + STUB); t2.height = TH;
       // papier
       const pg = tc.createRadialGradient(TW, 0, 0, TW, 0, TW * 1.1); pg.addColorStop(0, '#F1D2A0'); pg.addColorStop(.55, '#F4E9D6'); pg.addColorStop(1, '#F4E9D6');
@@ -638,9 +818,17 @@ const VOYAGE = {
       tc.textAlign = 'right'; tc.fillText(d.no, TW - PX, y);
       y += 64; label('Destination', PX, y);
       y += 140; fitFont(tc, 'AMSTERDAM', 900, 168, inner); tc.fillStyle = ink; tc.textAlign = 'left'; tc.fillText('AMSTERDAM', PX - 4, y);
-      y += 70; label('Passager', PX, y);
-      tc.font = `900 ${nameSize}px "Big Shoulders Display", sans-serif`; tc.fillStyle = ink;
-      for (const ln of nameLines) { y += nameSize * 1.02; tc.fillText(ln, PX, y); }
+      const yDest = y;
+      if (photoImg) {
+        const top = y + 30;
+        tc.save(); rr(tc, PX, top, P, P, 26); tc.clip(); tc.drawImage(photoImg, PX, top, P, P); tc.restore();
+        tc.strokeStyle = 'rgba(11,18,32,.25)'; tc.lineWidth = 3; rr(tc, PX, top, P, P, 26); tc.stroke();
+        const block = 44 + linesH, off = Math.max(0, (P - block) / 2);
+        y = top + off + 34; label('Passager', nameX, y);
+      } else { y += 70; label('Passager', PX, y); }
+      tc.font = `900 ${nameSize}px "Big Shoulders Display", sans-serif`; tc.fillStyle = ink; tc.textAlign = 'left';
+      for (const ln of nameLines) { y += nameSize * 1.02; tc.fillText(ln, nameX, y); }
+      y = yDest + passengerH - 14;
       const col2 = PX + inner / 2 + 10;
       const cell = (lab, val, x, yy) => { label(lab, x, yy); tc.font = '800 50px "Big Shoulders Display", sans-serif'; tc.fillStyle = ink; tc.textAlign = 'left'; tc.fillText(val, x, yy + 58); };
       y += 70; cell('Départ', d.dep, PX, y); cell('Retour', d.ret, col2, y);
@@ -710,8 +898,9 @@ const VOYAGE = {
       out.hidden = true; form.hidden = false; first.focus({ preventScroll: true });
     });
     try {
-      const saved = JSON.parse(localStorage.getItem('amsterdam-ticket') || 'null');
-      if (saved) { first.value = saved[0]; last.value = saved[1]; render(saved[0], saved[1], false); }
+      let saved = JSON.parse(localStorage.getItem('amsterdam-ticket') || 'null');
+      if (Array.isArray(saved)) saved = { fn: saved[0], ln: saved[1] };
+      if (saved) { first.value = saved.fn; last.value = saved.ln; setPhoto(saved.photo || null); render(saved.fn, saved.ln, false); }
     } catch {}
   }
 
