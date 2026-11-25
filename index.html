@@ -204,6 +204,39 @@
   .key-del { background: none; border-color: transparent; }
   .key-del svg { width: 42%; height: 42%; }
   @media (hover: hover) and (pointer: fine) { .key:hover { background: rgba(244,233,214,.14); } }
+
+  /* Scanner d'empreinte */
+  .secret-bio { display: flex; flex-direction: column; align-items: center; gap: clamp(18px, 3.5dvh, 32px); }
+  .bio {
+    position: relative; width: clamp(150px, 26dvh, 200px); aspect-ratio: 1; border-radius: 50%;
+    border: 0; padding: 0; cursor: pointer; color: var(--paper);
+    background: radial-gradient(circle, rgba(240,164,58,.10), rgba(244,233,214,.04) 70%);
+    touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+    transition: transform 200ms var(--ease-out);
+  }
+  .bio.holding { transform: scale(.96); }
+  .bio:focus-visible { outline: 3px solid var(--paper); outline-offset: 6px; }
+  .bio-ring { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .bio-ring circle { fill: none; stroke-width: 2; }
+  .bio-ring .track { stroke: rgba(244,233,214,.14); }
+  .bio-ring .bar { stroke: var(--amber); stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
+  .fp, .fp-fill { position: absolute; inset: 22%; width: 56%; height: 56%; }
+  .fp { fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .fp-base { stroke: rgba(244,233,214,.35); }
+  .fp-fill { overflow: hidden; clip-path: inset(100% 0 0 0); }
+  .fp-fill .fp { inset: 0; width: 100%; height: 100%; stroke: var(--amber); filter: drop-shadow(0 0 6px rgba(240,164,58,.7)); }
+  .scanline {
+    position: absolute; left: 18%; right: 18%; top: 22%; height: 56%; pointer-events: none;
+    opacity: 0; transition: opacity 200ms var(--ease-out);
+  }
+  .scanline::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; border-radius: 2px;
+    background: #FFD79A; box-shadow: 0 0 12px 2px rgba(240,164,58,.8);
+  }
+  .bio.holding .scanline { opacity: 1; }
+  .bio.ok { background: radial-gradient(circle, rgba(240,164,58,.28), rgba(240,164,58,.06) 70%); }
+  .bio-msg { min-height: 24px; font-weight: 500; font-size: 20px; color: var(--muted); }
+  .bio.ok + .bio-msg { color: var(--amber); font-weight: 800; }
   .code-error { min-height: 22px; font-weight: 500; font-size: 18px; color: #FFB4A0; }
   .shake { animation: shake 360ms var(--ease-out); }
   @keyframes shake { 20% { transform: translateX(-8px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(2px); } }
@@ -392,6 +425,16 @@ const VOYAGE = {
         </div>
         <p class="code-error" id="codeError" role="alert"></p>
       </div>
+      <div class="secret-bio" hidden>
+        <p class="step-when">Vérification</p>
+        <button type="button" class="bio" id="bio" aria-label="Garde le doigt appuyé pour scanner ton empreinte">
+          <svg class="bio-ring" viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="47"/><circle class="bar" id="bioBar" cx="50" cy="50" r="47" pathLength="100" stroke-dasharray="0 100"/></svg>
+          <svg class="fp fp-base" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg>
+          <span class="fp-fill" id="fpFill"><svg class="fp" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg></span>
+          <span class="scanline" id="scanline"></span>
+        </button>
+        <p class="bio-msg" id="bioMsg" role="status">Pose ton doigt pour confirmer</p>
+      </div>
       <div class="secret-open" hidden><p class="step-when"></p><p class="step-what"></p></div>`;
     slides.append(s);
     const pin = s.querySelector('.pin'), err = s.querySelector('#codeError');
@@ -405,6 +448,7 @@ const VOYAGE = {
       s.querySelector('.secret-open .step-when').textContent = sec.when;
       s.querySelector('.secret-open .step-what').textContent = sec.what;
       s.querySelector('.secret-locked').hidden = true;
+      s.querySelector('.secret-bio').hidden = true;
       s.querySelector('.secret-open').hidden = false;
       s.classList.remove('is-locked');
       if (sec.img) { const im = new Image(); im.alt = sec.what; im.src = sec.img; s.querySelector('.art').append(im); }
@@ -423,7 +467,7 @@ const VOYAGE = {
       if (entry.length === LEN) {
         checking = true;
         const ok = await hash(entry) === sec.codeHash;
-        if (ok) { pin.classList.add('ok'); setTimeout(() => unlock(false), 250); }
+        if (ok) { pin.classList.add('ok'); setTimeout(showBio, 300); }
         else {
           err.textContent = 'Mauvais code, réessaie.';
           pin.classList.remove('shake'); void pin.offsetWidth; pin.classList.add('shake');
@@ -441,6 +485,54 @@ const VOYAGE = {
       if (/^[0-9]$/.test(e.key)) press(e.key);
       else if (e.key === 'Backspace') press('del');
     });
+
+    /* ---- Double authentification : faux scanner d'empreinte (n'importe quel doigt passe) ---- */
+    const bio = s.querySelector('#bio'), bioBar = s.querySelector('#bioBar'), fpFill = s.querySelector('#fpFill'),
+          scanline = s.querySelector('#scanline'), bioMsg = s.querySelector('#bioMsg');
+    const HOLD = 2000; // durée d'appui en ms
+    let bioP = 0, holding = false, bioDone = false, bioLast = 0, bioRaf = 0;
+    const renderBio = () => {
+      bioBar.setAttribute('stroke-dasharray', `${(bioP * 100).toFixed(2)} 100`);
+      fpFill.style.clipPath = `inset(${((1 - bioP) * 100).toFixed(2)}% 0 0 0)`;
+      scanline.style.transform = `translateY(${((1 - bioP) * 100).toFixed(2)}%)`;
+    };
+    const bioLoop = (t) => {
+      const dt = Math.min(t - bioLast, 64); bioLast = t;
+      bioP = holding ? Math.min(1, bioP + dt / HOLD) : Math.max(0, bioP - dt / 350);
+      renderBio();
+      if (bioP >= 1 && !bioDone) {
+        bioDone = true; holding = false;
+        bio.classList.remove('holding'); bio.classList.add('ok');
+        bioMsg.textContent = 'Empreinte reconnue';
+        setTimeout(() => unlock(false), 700);
+        return;
+      }
+      if (holding || bioP > 0) bioRaf = requestAnimationFrame(bioLoop); else bioRaf = 0;
+    };
+    const startHold = () => {
+      if (bioDone || holding) return;
+      holding = true; bio.classList.add('holding');
+      bioMsg.textContent = 'Scan en cours…';
+      if (!bioRaf) { bioLast = performance.now(); bioRaf = requestAnimationFrame(bioLoop); }
+    };
+    const stopHold = () => {
+      if (!holding || bioDone) return;
+      holding = false; bio.classList.remove('holding');
+      bioMsg.textContent = 'Garde ton doigt posé jusqu’au bout';
+    };
+    bio.addEventListener('pointerdown', (e) => { e.preventDefault(); bio.setPointerCapture?.(e.pointerId); startHold(); });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => bio.addEventListener(ev, stopHold));
+    bio.addEventListener('contextmenu', (e) => e.preventDefault());
+    bio.addEventListener('keydown', (e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); startHold(); } });
+    bio.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') stopHold(); });
+    bio.addEventListener('click', (e) => e.preventDefault());
+    function showBio() {
+      locked = false; // le pavé ne réagit plus
+      s.querySelector('.secret-locked').hidden = true;
+      s.querySelector('.secret-bio').hidden = false;
+      s.classList.add('bio-step');
+      renderBio();
+    }
     try { if (localStorage.getItem('amsterdam-secret') === sec.codeHash) unlock(true); } catch {}
   }
 
