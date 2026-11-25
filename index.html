@@ -229,12 +229,32 @@
   }
   .t-barcode { width: 100%; height: 46px; fill: var(--ink); }
   .t-sound { font-weight: 500; font-size: 15px; opacity: .75; }
+  .t-actions { display: flex; align-items: center; justify-content: center; gap: 4px 10px; flex-wrap: wrap; margin-top: 6px; }
+  .t-save { font-size: 19px; min-height: 48px; min-width: 0; padding: 0 20px; }
+  .t-save[disabled] { opacity: .6; }
+  .t-status { min-height: 20px; font-weight: 500; font-size: 16px; color: var(--muted); }
+  .save-overlay { position: fixed; inset: 0; z-index: 20; background: rgba(5,8,15,.95); display: grid; place-items: center; padding: 16px; }
+  .save-sheet { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; max-width: 420px; }
+  .save-sheet img { max-height: 68dvh; max-width: 100%; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.6); -webkit-touch-callout: default; }
+  .save-sheet p { font-weight: 800; font-size: 20px; color: var(--paper); text-wrap: balance; }
   .t-edit {
     font: inherit; font-weight: 500; font-size: 18px; color: var(--muted); background: none; border: 0;
     min-height: 44px; padding: 0 12px; cursor: pointer; text-decoration: underline; text-underline-offset: 4px;
   }
   .t-edit:focus-visible { outline: 3px solid var(--paper); outline-offset: 2px; border-radius: 8px; }
   @media (prefers-reduced-motion: reduce) { .ticket.printing { animation: none; } }
+  @media (max-height: 620px) {
+    .slide-ticket { padding-top: calc(env(safe-area-inset-top) + 76px); padding-bottom: calc(env(safe-area-inset-bottom) + 48px); }
+    .ticket { --stub: 58px; width: min(78vw, 340px); }
+    .t-head { display: none; }
+    .t-dest { font-size: 34px; }
+    .t-name { font-size: 19px; }
+    .t-grid dd { font-size: 15px; }
+    .t-sound { display: none; }
+    .t-barcode { height: 30px; }
+    .t-save { font-size: 17px; min-height: 44px; padding: 0 16px; }
+    .t-status:empty { display: none; }
+  }
   @media (max-height: 760px) {
     .slide-ticket { padding-top: calc(env(safe-area-inset-top) + 84px); }
     .ticket { --stub: 84px; }
@@ -451,7 +471,7 @@ const VOYAGE = {
   document.addEventListener('click', (e) => {
     if (!body.classList.contains('playing-screen')) return;
     if (e.target === vinyl) { toggle(); return; } // clavier
-    if (e.target.closest('button, a')) return;
+    if (e.target.closest('button, a, .save-overlay')) return;
     const r = deck.getBoundingClientRect();
     const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
     if (Math.hypot(dx, dy) <= r.width / 2) toggle();
@@ -517,7 +537,11 @@ const VOYAGE = {
             </div>
           </article>
         </div>
-        <button class="t-edit" type="button">Changer le nom</button>
+        <div class="t-actions">
+          <button class="btn btn-yes t-save" type="button">Enregistrer dans la pellicule</button>
+          <button class="t-edit" type="button">Changer le nom</button>
+        </div>
+        <p class="t-status" role="status"></p>
       </div>`;
     slides.append(t);
 
@@ -528,6 +552,12 @@ const VOYAGE = {
     const fmt = (d) => new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Paris' }).format(d);
     const SEATS = ['Arrière gauche', 'Arrière droite', 'Avant droite', 'Arrière milieu'];
 
+    let current = null;
+    const makeBars = (h) => {
+      const out = []; let x = 0, r = h || 1;
+      while (x < 100) { r = Math.imul(r ^ (r >>> 15), 2246822507) >>> 0; const w = 0.6 + (r % 4) * 0.55; if ((r >>> 8) % 3) out.push([x, w]); x += w + 0.7 + ((r >>> 4) % 3) * 0.45; }
+      return out;
+    };
     const render = (fn, ln, animate) => {
       const key = (fn + ' ' + ln).trim().toLowerCase();
       const h = hashStr(key);
@@ -539,9 +569,10 @@ const VOYAGE = {
       f('seat').textContent = SEATS[h % SEATS.length];
       f('no').textContent = 'N° AMS-' + String(h % 10000).padStart(4, '0');
       // code-barres décoratif, propre à chaque nom
-      let x = 0, bars = '', r = h || 1;
-      while (x < 100) { r = Math.imul(r ^ (r >>> 15), 2246822507) >>> 0; const w = 0.6 + (r % 4) * 0.55; if ((r >>> 8) % 3) bars += `<rect x="${x.toFixed(2)}" width="${w.toFixed(2)}" height="24"/>`; x += w + 0.7 + ((r >>> 4) % 3) * 0.45; }
-      f('bars').innerHTML = bars;
+      const barList = makeBars(h);
+      f('bars').innerHTML = barList.map(([x, w]) => `<rect x="${x.toFixed(2)}" width="${w.toFixed(2)}" height="24"/>`).join('');
+      current = { name: (fn + ' ' + ln).trim(), first: fn, no: f('no').textContent, dep: f('dep').textContent, ret: f('ret').textContent,
+                  time: f('time').textContent, seat: f('seat').textContent, bars: barList, seed: h };
       form.hidden = true; out.hidden = false;
       ticket.classList.remove('printing');
       if (animate) { void ticket.offsetWidth; ticket.classList.add('printing'); }
@@ -556,6 +587,124 @@ const VOYAGE = {
       document.activeElement.blur();
       render(fn, ln, !reduce);
       try { localStorage.setItem('amsterdam-ticket', JSON.stringify([fn, ln])); } catch {}
+    });
+
+    /* ---- Image du billet (format story 1080×1920) et enregistrement ---- */
+    const rr = (c, x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
+    const fitFont = (c, txt, weight, size, maxW) => { let sz = size; do { c.font = `${weight} ${sz}px "Big Shoulders Display", sans-serif`; sz -= 2; } while (c.measureText(txt).width > maxW && sz > 20); return sz + 2; };
+    const wrap = (c, txt, maxW) => {
+      const words = txt.split(/\s+/), lines = []; let line = '';
+      for (const w of words) { const test = line ? line + ' ' + w : w; if (c.measureText(test).width > maxW && line) { lines.push(line); line = w; } else line = test; }
+      if (line) lines.push(line); return lines;
+    };
+    const drawTicket = async () => {
+      const d = current; if (!d) return null;
+      try { await Promise.all(['900 100px', '800 40px', '500 30px'].map(w => document.fonts.load(`${w} "Big Shoulders Display"`))); } catch {}
+      const W = 1080, H = 1920, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      const c = cv.getContext('2d');
+      // fond : nuit + lueur ambre + étoiles
+      let g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0B1220'); g.addColorStop(.5, '#0B1220'); g.addColorStop(1, '#18223A');
+      c.fillStyle = g; c.fillRect(0, 0, W, H);
+      g = c.createRadialGradient(W / 2, H * 1.08, 0, W / 2, H * 1.08, H * .62); g.addColorStop(0, 'rgba(240,164,58,.45)'); g.addColorStop(.5, 'rgba(184,103,26,.12)'); g.addColorStop(1, 'rgba(240,164,58,0)');
+      c.fillStyle = g; c.fillRect(0, 0, W, H);
+      let r = d.seed || 7;
+      const rnd = () => (r = Math.imul(r ^ (r >>> 13), 1274126177) >>> 0) / 4294967296;
+      for (let i = 0; i < 170; i++) {
+        const y = Math.pow(rnd(), 1.6) * H * .85, x = rnd() * W, big = rnd() < .07;
+        c.globalAlpha = (.35 + rnd() * .6) * (1 - y / H * .9); c.fillStyle = rnd() < .6 ? '#FFC874' : '#F4E9D6';
+        c.beginPath(); c.arc(x, y, big ? 3.4 : 1 + rnd() * 1.6, 0, Math.PI * 2); c.fill();
+      }
+      c.globalAlpha = 1;
+
+      // mise en page du billet
+      const TW = 860, PX = 60, inner = TW - PX * 2, STUB = 270;
+      const t2 = document.createElement('canvas'); t2.width = TW; const tc = t2.getContext('2d');
+      const nameSize = 70; tc.font = `900 ${nameSize}px "Big Shoulders Display", sans-serif`;
+      const nameLines = wrap(tc, d.name.toUpperCase(), inner).slice(0, 3);
+      const mainH = 60 + 40 + 54 + 150 + 40 + 44 + nameLines.length * nameSize * 1.02 + 50 + 2 * 112 + 30;
+      const TH = Math.round(mainH + STUB); t2.height = TH;
+      // papier
+      const pg = tc.createRadialGradient(TW, 0, 0, TW, 0, TW * 1.1); pg.addColorStop(0, '#F1D2A0'); pg.addColorStop(.55, '#F4E9D6'); pg.addColorStop(1, '#F4E9D6');
+      tc.fillStyle = pg; rr(tc, 0, 0, TW, TH, 42); tc.fill();
+      // encoches
+      tc.globalCompositeOperation = 'destination-out';
+      [0, TW].forEach(x => { tc.beginPath(); tc.arc(x, mainH, 32, 0, Math.PI * 2); tc.fill(); });
+      tc.globalCompositeOperation = 'source-over';
+      const ink = '#0B1220', rust = '#9A5310';
+      const label = (txt, x, y, align = 'left') => { tc.font = '800 28px "Big Shoulders Display", sans-serif'; tc.fillStyle = rust; tc.textAlign = align; tc.fillText(txt.toUpperCase(), x, y); };
+      let y = 60 + 30;
+      tc.font = '800 30px "Big Shoulders Display", sans-serif'; tc.fillStyle = 'rgba(11,18,32,.7)';
+      tc.textAlign = 'left'; tc.fillText('BILLET ALLER-RETOUR', PX, y);
+      tc.textAlign = 'right'; tc.fillText(d.no, TW - PX, y);
+      y += 64; label('Destination', PX, y);
+      y += 140; fitFont(tc, 'AMSTERDAM', 900, 168, inner); tc.fillStyle = ink; tc.textAlign = 'left'; tc.fillText('AMSTERDAM', PX - 4, y);
+      y += 70; label('Passager', PX, y);
+      tc.font = `900 ${nameSize}px "Big Shoulders Display", sans-serif`; tc.fillStyle = ink;
+      for (const ln of nameLines) { y += nameSize * 1.02; tc.fillText(ln, PX, y); }
+      const col2 = PX + inner / 2 + 10;
+      const cell = (lab, val, x, yy) => { label(lab, x, yy); tc.font = '800 50px "Big Shoulders Display", sans-serif'; tc.fillStyle = ink; tc.textAlign = 'left'; tc.fillText(val, x, yy + 58); };
+      y += 70; cell('Départ', d.dep, PX, y); cell('Retour', d.ret, col2, y);
+      y += 112; cell('Embarquement', d.time, PX, y); cell('Place', d.seat, col2, y);
+      // pointillés
+      tc.strokeStyle = 'rgba(11,18,32,.3)'; tc.lineWidth = 4; tc.setLineDash([16, 12]);
+      tc.beginPath(); tc.moveTo(48, mainH); tc.lineTo(TW - 48, mainH); tc.stroke(); tc.setLineDash([]);
+      // talon : code-barres + bande-son
+      tc.fillStyle = ink;
+      const bx = PX, bw = inner, by = mainH + 52, bh = 120;
+      for (const [x, w] of d.bars) tc.fillRect(bx + x / 100 * bw, by, Math.max(2, w / 100 * bw), bh);
+      tc.font = '500 32px "Big Shoulders Display", sans-serif'; tc.fillStyle = 'rgba(11,18,32,.75)'; tc.textAlign = 'left';
+      tc.fillText('Bande-son : Amsterdam, Moha La Squale', PX, by + bh + 50);
+
+      // billet posé sur le fond, avec ombre
+      const tx = (W - TW) / 2, ty = Math.round((H - TH) / 2 - 20);
+      c.save(); c.shadowColor = 'rgba(0,0,0,.6)'; c.shadowBlur = 80; c.shadowOffsetY = 40; c.drawImage(t2, tx, ty); c.restore();
+      c.save(); c.shadowColor = 'rgba(240,164,58,.25)'; c.shadowBlur = 90; c.drawImage(t2, tx, ty); c.restore();
+      return new Promise(res => cv.toBlob(res, 'image/png'));
+    };
+
+    const status = t.querySelector('.t-status');
+    const overlay = document.createElement('div');
+    overlay.className = 'save-overlay'; overlay.hidden = true;
+    overlay.innerHTML = `<div class="save-sheet" role="dialog" aria-modal="true" aria-label="Enregistrer le billet">
+        <img alt="Ton billet pour Amsterdam">
+        <p>Appuie longuement sur l’image, puis «&nbsp;Ajouter à Photos&nbsp;».</p>
+        <button class="btn btn-ghost" type="button">Fermer</button></div>`;
+    document.body.append(overlay);
+    const closeOverlay = () => { overlay.hidden = true; const im = overlay.querySelector('img'); if (im.src) URL.revokeObjectURL(im.src); im.removeAttribute('src'); };
+    overlay.querySelector('button').addEventListener('click', closeOverlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(); });
+    addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.hidden) closeOverlay(); });
+    const showOverlay = (blob) => { overlay.querySelector('img').src = URL.createObjectURL(blob); overlay.hidden = false; overlay.querySelector('button').focus(); };
+
+    const dlCap = window.claude?.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
+    const touch = matchMedia('(pointer: coarse)').matches;
+    const saveBtn = t.querySelector('.t-save');
+    saveBtn.addEventListener('click', async () => {
+      if (!current) return;
+      status.textContent = 'Préparation de l’image…'; saveBtn.disabled = true;
+      try {
+        const blob = await drawTicket();
+        const filename = `billet-amsterdam-${current.first.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'moi'}.png`;
+        const file = new File([blob], filename, { type: 'image/png' });
+        // 1. iPhone / Android : feuille de partage -> « Enregistrer l'image »
+        if (navigator.canShare?.({ files: [file] })) {
+          try { await navigator.share({ files: [file] }); status.textContent = ''; return; }
+          catch (err) { if (err?.name === 'AbortError') { status.textContent = ''; return; } }
+        }
+        // 2. téléphone sans partage possible ici : image en grand, appui long
+        if (touch) { status.textContent = ''; showOverlay(blob); return; }
+        // 3. ordi : téléchargement
+        const dl = await dlCap;
+        if (dl) {
+          try { await dl.save({ filename, data: blob }); status.textContent = 'Billet enregistré.'; return; }
+          catch (err) { if (err?.code === 'declined') { status.textContent = ''; return; } }
+        }
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
+        document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        status.textContent = 'Billet téléchargé.';
+      } catch {
+        status.textContent = 'Impossible de créer l’image. Fais une capture d’écran du billet.';
+      } finally { saveBtn.disabled = false; }
     });
     t.querySelector('.t-edit').addEventListener('click', () => {
       out.hidden = true; form.hidden = false; first.focus({ preventScroll: true });
